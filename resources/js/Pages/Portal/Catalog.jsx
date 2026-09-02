@@ -104,7 +104,9 @@ export default function Catalog({ products, isCurated }) {
                                                 : 'badge bg-cherry/10 text-cherry-dark'
                                         }
                                     >
-                                        {product.made_to_order
+                                        {product.manually_unavailable
+                                            ? 'Unavailable'
+                                            : product.made_to_order
                                             ? 'Made to order'
                                             : product.in_stock
                                               ? 'Available'

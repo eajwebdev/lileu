@@ -36,6 +36,7 @@ class TerminalController extends Controller
                     'price' => (float) $p->retail_price,
                     'stock' => $p->stock,
                     'tracks_stock' => $p->tracksStock(),
+                    'is_available' => $p->isManuallyAvailable(),
                     'category_id' => $p->category_id,
                     'category' => $p->category?->name,
                     'accent' => $p->category?->accent ?? 'blush',
@@ -78,6 +79,12 @@ class TerminalController extends Controller
                 }
 
                 $qty = (int) $line['quantity'];
+
+                if (! $product->isManuallyAvailable()) {
+                    throw ValidationException::withMessages([
+                        'items' => "{$product->name} is currently unavailable.",
+                    ]);
+                }
 
                 if ($product->tracksStock() && $qty > $product->stock) {
                     throw ValidationException::withMessages([

@@ -66,6 +66,7 @@ class LandingController extends Controller
             'retail_price' => (float) $product->retail_price,
             'reseller_price' => (float) $product->reseller_price,
             'in_stock' => $product->isAvailable(),
+            'manually_unavailable' => ! $product->isManuallyAvailable(),
             'made_to_order' => ! $product->tracksStock(),
             'is_featured' => $product->is_featured,
             'category' => $product->category?->only(['name', 'slug', 'accent']),

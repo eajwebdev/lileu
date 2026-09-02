@@ -42,6 +42,7 @@ class ProductController extends Controller
                 'low_stock_threshold' => $p->low_stock_threshold,
                 'min_reseller_qty' => $p->min_reseller_qty,
                 'is_active' => $p->is_active,
+                'is_available' => $p->isManuallyAvailable(),
                 'is_featured' => $p->is_featured,
                 'available_to_resellers' => $p->available_to_resellers,
                 'is_low_stock' => $p->is_low_stock,
@@ -86,6 +87,22 @@ class ProductController extends Controller
         return back()->with('success', 'Product removed.');
     }
 
+    public function availability(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'is_available' => ['required', 'boolean'],
+        ]);
+
+        $product->update($data);
+
+        return back()->with(
+            'success',
+            $product->isManuallyAvailable()
+                ? "{$product->name} is available again."
+                : "{$product->name} is now marked unavailable.",
+        );
+    }
+
     private function validated(Request $request, ?Product $product = null): array
     {
         return $request->validate([
@@ -102,6 +119,7 @@ class ProductController extends Controller
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'min_reseller_qty' => ['required', 'integer', 'min:1'],
             'is_active' => ['boolean'],
+            'is_available' => ['required', 'boolean'],
             'is_featured' => ['boolean'],
             'available_to_resellers' => ['boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],

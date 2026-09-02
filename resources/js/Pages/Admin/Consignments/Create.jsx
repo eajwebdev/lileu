@@ -62,7 +62,7 @@ export default function Create({ sellers, products }) {
     const setQty = (product, quantity) =>
         setCart((prev) => {
             const next = { ...prev };
-            const maximum = product.tracks_stock ? product.stock : 100000;
+            const maximum = !product.is_available ? 0 : product.tracks_stock ? product.stock : 100000;
             const clamped = Math.min(maximum, Math.max(0, quantity));
 
             if (clamped === 0) delete next[product.id];
@@ -148,7 +148,11 @@ export default function Create({ sellers, products }) {
                                         key={product.id}
                                         className={clsx(
                                             'flex min-h-24 gap-2.5 rounded-2xl border p-2.5 transition',
-                                            qty > 0 ? 'border-blush-300 bg-blush-50 shadow-soft' : 'border-cream-300/70 bg-vanilla',
+                                            !product.is_available
+                                                ? 'border-cream-300/70 bg-cream-100 opacity-60'
+                                                : qty > 0
+                                                  ? 'border-blush-300 bg-blush-50 shadow-soft'
+                                                  : 'border-cream-300/70 bg-vanilla',
                                         )}
                                     >
                                         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-cream-200 sm:h-18 sm:w-18">
@@ -158,7 +162,12 @@ export default function Create({ sellers, products }) {
                                         <div className="flex min-w-0 flex-1 flex-col">
                                             <p className="truncate font-semibold text-chocolate-700">{product.name}</p>
                                             <p className="text-xs text-chocolate-400">
-                                                {product.tracks_stock ? `${product.stock} in stock` : 'Made to order'} · retail{' '}
+                                                {!product.is_available
+                                                    ? 'Unavailable'
+                                                    : product.tracks_stock
+                                                      ? `${product.stock} in stock`
+                                                      : 'Made to order'}{' '}
+                                                · retail{' '}
                                                 <Money value={product.retail_price} decimals={0} />
                                             </p>
 
@@ -175,7 +184,13 @@ export default function Create({ sellers, products }) {
                                                 <input
                                                     type="number"
                                                     min={0}
-                                                    max={product.tracks_stock ? product.stock : 100000}
+                                                    max={
+                                                        !product.is_available
+                                                            ? 0
+                                                            : product.tracks_stock
+                                                              ? product.stock
+                                                              : 100000
+                                                    }
                                                     value={qty}
                                                     onChange={(e) => setQty(product, Number(e.target.value))}
                                                     className="h-9 w-14 rounded-lg border-cream-300 bg-vanilla text-center text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
@@ -183,7 +198,10 @@ export default function Create({ sellers, products }) {
                                                 <button
                                                     type="button"
                                                     onClick={() => setQty(product, qty + 1)}
-                                                    disabled={product.tracks_stock && qty >= product.stock}
+                                                    disabled={
+                                                        !product.is_available ||
+                                                        (product.tracks_stock && qty >= product.stock)
+                                                    }
                                                     className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 active:scale-95 disabled:opacity-40"
                                                     aria-label={`Add one ${product.name}`}
                                                 >

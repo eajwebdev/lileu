@@ -5,9 +5,9 @@ use App\Http\Controllers\HomeRedirectController;
 use App\Http\Controllers\PaymentPageController;
 use App\Http\Controllers\Portal;
 use App\Http\Controllers\Pos\TerminalController;
-use App\Http\Controllers\Site;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\Site;
 use App\Http\Controllers\Webhooks\PayMongoWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,6 +87,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/products', [Admin\ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [Admin\ProductController::class, 'store'])->name('products.store');
     Route::put('/products/{product}', [Admin\ProductController::class, 'update'])->name('products.update');
+    Route::patch('/products/{product}/availability', [Admin\ProductController::class, 'availability'])->name('products.availability');
     Route::delete('/products/{product}', [Admin\ProductController::class, 'destroy'])->name('products.destroy');
 
     Route::post('/categories', [Admin\CategoryController::class, 'store'])->name('categories.store');

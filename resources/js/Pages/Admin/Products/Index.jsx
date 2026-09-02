@@ -33,6 +33,7 @@ const BLANK = {
     low_stock_threshold: 10,
     min_reseller_qty: 10,
     is_active: true,
+    is_available: true,
     is_featured: false,
     available_to_resellers: true,
     sort_order: 0,
@@ -69,6 +70,7 @@ export default function Index({ products, categories, filters }) {
             low_stock_threshold: product.low_stock_threshold,
             min_reseller_qty: product.min_reseller_qty,
             is_active: product.is_active,
+            is_available: product.is_available,
             is_featured: product.is_featured,
             available_to_resellers: product.available_to_resellers,
             sort_order: 0,
@@ -194,6 +196,32 @@ export default function Index({ products, categories, filters }) {
                                         </td>
                                         <td>
                                             <div className="flex flex-wrap gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        router.patch(
+                                                            route('admin.products.availability', product.id),
+                                                            { is_available: !product.is_available },
+                                                            { preserveScroll: true },
+                                                        )
+                                                    }
+                                                    aria-pressed={product.is_available}
+                                                    aria-label={`${product.is_available ? 'Mark' : 'Make'} ${product.name} ${product.is_available ? 'unavailable' : 'available'}`}
+                                                    className={clsx(
+                                                        'badge cursor-pointer border transition active:scale-95',
+                                                        product.is_available
+                                                            ? 'border-success/20 bg-success-light text-success hover:bg-success/15'
+                                                            : 'border-cherry/20 bg-cherry/10 text-cherry-dark hover:bg-cherry/15',
+                                                    )}
+                                                >
+                                                    <span
+                                                        className={clsx(
+                                                            'h-1.5 w-1.5 rounded-full',
+                                                            product.is_available ? 'bg-success' : 'bg-cherry',
+                                                        )}
+                                                    />
+                                                    {product.is_available ? 'Available' : 'Unavailable'}
+                                                </button>
                                                 {!product.is_active && <Badge tone="muted-red">Hidden</Badge>}
                                                 {product.is_featured && <Badge tone="cherry">Featured</Badge>}
                                                 {product.available_to_resellers && (
@@ -336,7 +364,7 @@ export default function Index({ products, categories, filters }) {
                             onChange={(e) => form.setData('tracks_stock', e.target.value === 'stocked')}
                         >
                             <option value="stocked">Stocked — count and deduct inventory</option>
-                            <option value="made_to_order">Made to order — always available</option>
+                            <option value="made_to_order">Made to order — do not count stock</option>
                         </Select>
                     </Field>
 
@@ -374,6 +402,12 @@ export default function Index({ products, categories, filters }) {
                             onChange={(v) => form.setData('is_active', v)}
                             label="Active"
                             description="Visible on the public menu and at the counter."
+                        />
+                        <Toggle
+                            checked={form.data.is_available}
+                            onChange={(v) => form.setData('is_available', v)}
+                            label="Available for sale"
+                            description="Turn off to keep it visible but mark it unavailable everywhere."
                         />
                         <Toggle
                             checked={form.data.is_featured}

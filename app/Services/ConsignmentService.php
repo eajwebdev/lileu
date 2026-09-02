@@ -58,6 +58,12 @@ class ConsignmentService
                     continue;
                 }
 
+                abort_unless(
+                    $product->isManuallyAvailable(),
+                    422,
+                    "{$product->name} is currently unavailable.",
+                );
+
                 abort_if(
                     $product->tracksStock() && $quantity > $product->stock,
                     422,

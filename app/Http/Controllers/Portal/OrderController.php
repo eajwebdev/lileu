@@ -163,8 +163,8 @@ class OrderController extends Controller
         // No curated list yet? Fall back to everything opened to resellers, so a
         // freshly approved partner is never staring at an empty catalog.
         $products = $curated->isNotEmpty()
-            ? $curated
-            : Product::active()->where('available_to_resellers', true)->get();
+            ? $curated->where('is_available', true)->values()
+            : Product::active()->where('is_available', true)->where('available_to_resellers', true)->get();
 
         return $products->map(fn (Product $p) => [
             'id' => $p->id,

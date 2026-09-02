@@ -124,6 +124,28 @@ class PosSaleFlowTest extends TestCase
         ]);
     }
 
+    public function test_manually_unavailable_product_cannot_be_sold(): void
+    {
+        $this->product->update(['is_available' => false]);
+
+        $response = $this->actingAs($this->cashier)
+            ->from(route('pos.index'))
+            ->post(route('pos.sales.store'), [
+                'items' => [[
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                ]],
+                'discount' => 0,
+                'method' => 'cash',
+                'amount_tendered' => 20,
+            ]);
+
+        $response->assertRedirect(route('pos.index'));
+        $response->assertSessionHasErrors('items');
+        $this->assertSame(10, $this->product->refresh()->stock);
+        $this->assertDatabaseCount('pos_sales', 0);
+    }
+
     public function test_cash_sale_is_rejected_when_discount_or_cash_received_is_invalid(): void
     {
         $tooMuchDiscount = $this->actingAs($this->cashier)

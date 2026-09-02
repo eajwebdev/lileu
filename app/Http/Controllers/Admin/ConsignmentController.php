@@ -84,13 +84,14 @@ class ConsignmentController extends Controller
                 ]),
             'products' => Product::active()
                 ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'stock', 'tracks_stock', 'reseller_price', 'retail_price', 'image_path'])
+                ->get(['id', 'name', 'sku', 'stock', 'tracks_stock', 'is_available', 'reseller_price', 'retail_price', 'image_path'])
                 ->map(fn (Product $p) => [
                     'id' => $p->id,
                     'name' => $p->name,
                     'sku' => $p->sku,
                     'stock' => $p->stock,
                     'tracks_stock' => $p->tracksStock(),
+                    'is_available' => $p->isManuallyAvailable(),
                     'unit_price' => (float) $p->reseller_price,
                     'retail_price' => (float) $p->retail_price,
                     'image_url' => $p->image_url,

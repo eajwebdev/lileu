@@ -13,7 +13,7 @@ class Product extends Model
     protected $fillable = [
         'category_id', 'name', 'slug', 'sku', 'description', 'image_path',
         'retail_price', 'reseller_price', 'cost_price', 'stock', 'tracks_stock', 'low_stock_threshold',
-        'min_reseller_qty', 'is_active', 'is_featured', 'available_to_resellers', 'sort_order',
+        'min_reseller_qty', 'is_active', 'is_available', 'is_featured', 'available_to_resellers', 'sort_order',
     ];
 
     protected $casts = [
@@ -22,6 +22,7 @@ class Product extends Model
         'cost_price' => 'decimal:2',
         'tracks_stock' => 'boolean',
         'is_active' => 'boolean',
+        'is_available' => 'boolean',
         'is_featured' => 'boolean',
         'available_to_resellers' => 'boolean',
     ];
@@ -63,7 +64,12 @@ class Product extends Model
 
     public function isAvailable(): bool
     {
-        return ! $this->tracksStock() || $this->stock > 0;
+        return $this->isManuallyAvailable() && (! $this->tracksStock() || $this->stock > 0);
+    }
+
+    public function isManuallyAvailable(): bool
+    {
+        return (bool) ($this->is_available ?? true);
     }
 
     public function scopeActive(Builder $query): Builder

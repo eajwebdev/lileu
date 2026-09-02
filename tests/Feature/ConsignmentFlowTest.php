@@ -155,6 +155,22 @@ class ConsignmentFlowTest extends TestCase
         $this->assertSame(0, $this->product->refresh()->stock);
     }
 
+    public function test_manually_unavailable_product_cannot_be_issued_on_consignment(): void
+    {
+        $this->product->update(['is_available' => false]);
+
+        try {
+            $this->issue(5);
+            $this->fail('Issuing an unavailable product should have failed.');
+        } catch (HttpException $exception) {
+            $this->assertSame(422, $exception->getStatusCode());
+            $this->assertStringContainsString('currently unavailable', $exception->getMessage());
+        }
+
+        $this->assertSame(20, $this->product->refresh()->stock);
+        $this->assertDatabaseCount('consignments', 0);
+    }
+
     public function test_a_final_collection_cannot_hide_units_that_are_still_out(): void
     {
         $consignment = $this->issue(10);
