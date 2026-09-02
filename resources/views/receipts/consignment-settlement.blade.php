@@ -230,7 +230,7 @@
                 <td class="num">{{ $totals['quantity_sold'] }} pcs · {{ $peso($totals['sold_value']) }}</td>
             </tr>
             <tr>
-                <td>Returned to stock</td>
+                <td>Returned in good condition</td>
                 <td class="num">{{ $totals['quantity_returned'] }} pcs</td>
             </tr>
             <tr>

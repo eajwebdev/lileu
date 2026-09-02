@@ -195,7 +195,14 @@ export default function Show({ consignment, seller }) {
                                     {consignment.items.map((item) => (
                                         <tr key={item.id}>
                                             <td>
-                                                <p className="font-medium text-chocolate-700">{item.name}</p>
+                                                <p className="font-medium text-chocolate-700">
+                                                    {item.name}
+                                                    {!item.tracks_stock && (
+                                                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-blush-dark">
+                                                            Made to order
+                                                        </span>
+                                                    )}
+                                                </p>
                                                 <p className="font-mono text-[11px] text-chocolate-300">{item.sku}</p>
                                             </td>
                                             <td className="text-right tabular-nums">
@@ -255,7 +262,7 @@ export default function Show({ consignment, seller }) {
                                     For end-of-day pickup, enter sold or lost units first, then return everything else.
                                 </p>
                                 <Button type="button" variant="ghost" onClick={returnEverythingRemaining}>
-                                    Return all remaining stock
+                                    Mark all remaining returned
                                 </Button>
                             </div>
 
@@ -286,7 +293,14 @@ export default function Show({ consignment, seller }) {
                                                         key={item.id}
                                                         className={clsx(remaining < 0 && 'bg-cherry/5')}
                                                     >
-                                                        <td className="font-medium text-chocolate-700">{item.name}</td>
+                                                        <td className="font-medium text-chocolate-700">
+                                                            {item.name}
+                                                            {!item.tracks_stock && (
+                                                                <span className="block text-[10px] font-semibold uppercase tracking-wide text-blush-dark">
+                                                                    Made to order
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td className="text-center font-semibold tabular-nums text-chocolate-500">
                                                             {item.outstanding}
                                                         </td>
@@ -526,7 +540,7 @@ export default function Show({ consignment, seller }) {
                                 </dd>
                             </div>
                             <div className="flex justify-between text-chocolate-500">
-                                <dt>Returned to stock</dt>
+                                <dt>Returned in good condition</dt>
                                 <dd className="tabular-nums">{consignment.totals.quantity_returned} pcs</dd>
                             </div>
                             <div className="flex justify-between text-cherry-dark">
@@ -591,13 +605,13 @@ export default function Show({ consignment, seller }) {
                                 Cancel this batch
                             </h2>
                             <p className="mt-1 text-sm text-chocolate-400">
-                                Returns all {consignment.totals.outstanding} outstanding pcs to inventory.
+                                Restores tracked stock for {consignment.totals.outstanding} outstanding pcs.
                             </p>
                             <Button
                                 variant="danger"
                                 className="mt-3 w-full"
                                 onClick={() => {
-                                    if (window.confirm('Cancel this consignment and return unsold stock?')) {
+                                    if (window.confirm('Cancel this consignment and restore its tracked stock?')) {
                                         router.post(route('admin.consignments.cancel', consignment.number), {}, {
                                             preserveScroll: true,
                                         });
@@ -614,7 +628,7 @@ export default function Show({ consignment, seller }) {
                             <HandCoins className="mx-auto h-8 w-8 text-chocolate-200" />
                             <p className="mt-2 text-sm text-chocolate-400">
                                 {consignment.status === 'cancelled'
-                                    ? 'This batch was cancelled and its stock returned.'
+                                    ? 'This batch was cancelled and its tracked stock was restored.'
                                     : `Closed ${consignment.settled_at}.`}
                             </p>
                         </Card>

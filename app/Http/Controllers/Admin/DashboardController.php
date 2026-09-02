@@ -64,7 +64,8 @@ class DashboardController extends Controller
                     ->where('status', '!=', ResellerOrder::STATUS_CANCELLED)->count(),
                 'receivables' => round((float) ResellerOrder::where('status', '!=', ResellerOrder::STATUS_CANCELLED)
                     ->sum('balance'), 2),
-                'low_stock' => Product::active()->whereColumn('stock', '<=', 'low_stock_threshold')->count(),
+                'low_stock' => Product::active()->where('tracks_stock', true)
+                    ->whereColumn('stock', '<=', 'low_stock_threshold')->count(),
             ],
             'salesTrend' => $this->salesTrend($from, $to),
             'topProducts' => $this->topProducts($from, $to),
@@ -82,6 +83,7 @@ class DashboardController extends Controller
                     'placed_on' => $o->created_at->format('M j'),
                 ]),
             'lowStock' => Product::active()
+                ->where('tracks_stock', true)
                 ->whereColumn('stock', '<=', 'low_stock_threshold')
                 ->orderBy('stock')
                 ->limit(6)

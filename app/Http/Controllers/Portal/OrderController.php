@@ -175,7 +175,9 @@ class OrderController extends Controller
             'unit_price' => $this->orders->priceFor($reseller, $p),
             'retail_price' => (float) $p->retail_price,
             'min_qty' => $p->min_reseller_qty,
-            'in_stock' => $p->stock > 0,
+            'in_stock' => $p->isAvailable(),
+            'made_to_order' => ! $p->tracksStock(),
+            'tracks_stock' => $p->tracksStock(),
             'stock' => $p->stock,
         ])->values();
     }

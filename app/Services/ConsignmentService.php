@@ -13,10 +13,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Consignment: goods go out unpaid, and we settle later.
  *
- * Stock physically leaves the shelf on issue. On settlement each unit must land
- * in exactly one bucket — sold, returned good, expired, damaged or missing —
- * and only the "returned good" bucket goes back into stock. Everything else is
- * a loss, valued at cost so the P&L stays honest.
+ * Stocked products leave inventory on issue; made-to-order products do not.
+ * On settlement each unit lands in one outcome bucket, while only good returns
+ * of stocked products go back into inventory.
  */
 class ConsignmentService
 {
@@ -60,7 +59,7 @@ class ConsignmentService
                 }
 
                 abort_if(
-                    $quantity > $product->stock,
+                    $product->tracksStock() && $quantity > $product->stock,
                     422,
                     "{$product->name}: only {$product->stock} pcs are available, but {$quantity} were requested.",
                 );
@@ -77,14 +76,16 @@ class ConsignmentService
                     'unit_price' => $unitPrice,
                     'retail_price' => (float) $product->retail_price,
                     'cost_price' => (float) $product->cost_price,
+                    'tracks_stock' => $product->tracksStock(),
                     'quantity_issued' => $quantity,
                 ];
 
                 $issuedQty += $quantity;
                 $issuedValue += $unitPrice * $quantity;
 
-                // The goods are gone from our shelf the moment they are handed over.
-                $product->decrement('stock', $quantity);
+                if ($product->tracksStock()) {
+                    $product->decrement('stock', $quantity);
+                }
             }
 
             abort_if($rows === [], 422, 'A consignment needs at least one product.');
@@ -178,7 +179,7 @@ class ConsignmentService
                 ];
 
                 // Only good stock earns its place back on the shelf.
-                if ($returned > 0 && $item->product_id) {
+                if ($returned > 0 && $item->tracks_stock && $item->product_id) {
                     Product::whereKey($item->product_id)->increment('stock', $returned);
                 }
             }
@@ -287,14 +288,14 @@ class ConsignmentService
         return $consignment->refresh();
     }
 
-    /** Cancels an open batch and puts everything still outstanding back on the shelf. */
+    /** Cancel an open batch and restore outstanding tracked stock. */
     public function cancel(Consignment $consignment): Consignment
     {
         abort_unless($consignment->isOpen(), 422, 'Only an open consignment can be cancelled.');
 
         return DB::transaction(function () use ($consignment) {
             foreach ($consignment->items()->get() as $item) {
-                if ($item->outstanding() > 0 && $item->product_id) {
+                if ($item->outstanding() > 0 && $item->tracks_stock && $item->product_id) {
                     Product::whereKey($item->product_id)->increment('stock', $item->outstanding());
                 }
             }

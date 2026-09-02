@@ -35,6 +35,7 @@ class TerminalController extends Controller
                     'image_url' => $p->image_url,
                     'price' => (float) $p->retail_price,
                     'stock' => $p->stock,
+                    'tracks_stock' => $p->tracksStock(),
                     'category_id' => $p->category_id,
                     'category' => $p->category?->name,
                     'accent' => $p->category?->accent ?? 'blush',
@@ -78,7 +79,7 @@ class TerminalController extends Controller
 
                 $qty = (int) $line['quantity'];
 
-                if ($qty > $product->stock) {
+                if ($product->tracksStock() && $qty > $product->stock) {
                     throw ValidationException::withMessages([
                         'items' => "{$product->name}: only {$product->stock} pcs are currently in stock.",
                     ]);
@@ -95,7 +96,9 @@ class TerminalController extends Controller
                     'line_total' => $lineTotal,
                 ];
 
-                $product->decrement('stock', $qty);
+                if ($product->tracksStock()) {
+                    $product->decrement('stock', $qty);
+                }
             }
 
             $discount = round((float) ($data['discount'] ?? 0), 2);

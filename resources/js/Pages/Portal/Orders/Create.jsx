@@ -119,11 +119,15 @@ export default function Create({ products, reseller }) {
                                                 <Money value={product.unit_price} /> · retail{' '}
                                                 <Money value={product.retail_price} decimals={0} />
                                             </p>
-                                            {!product.in_stock && (
+                                            {product.made_to_order ? (
+                                                <p className="mt-0.5 text-xs font-medium text-blush-dark">
+                                                    Made to order
+                                                </p>
+                                            ) : !product.in_stock ? (
                                                 <p className="mt-0.5 text-xs font-medium text-cherry">
                                                     Currently out of stock
                                                 </p>
-                                            )}
+                                            ) : null}
 
                                             <div className="mt-auto flex items-center gap-2 pt-2">
                                                 <button

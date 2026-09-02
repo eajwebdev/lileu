@@ -158,7 +158,9 @@
             <tbody>
                 @foreach ($data['items'] as $item)
                     <tr>
-                        <td class="item-name">{{ $item['name'] }}</td>
+                        <td class="item-name">
+                            {{ $item['name'] }}{{ $item['tracks_stock'] ? '' : ' (Made to order)' }}
+                        </td>
                         <td class="ctr">{{ $item['quantity_issued'] }}</td>
                         <td class="num">{{ $peso($item['unit_price']) }}</td>
                         <td class="num">{{ $peso($item['retail_price']) }}</td>
@@ -184,9 +186,9 @@
             <strong>How this works.</strong>
             These goods remain the property of {{ $clean($brand['name']) }} until they are sold. The seller remits the
             <strong>remit price</strong> for every unit sold and keeps the difference from the retail price.
-            Unsold stock is returned on or before the collect-by date. Units returned in good condition go back into
-            inventory at no charge. Expired, damaged, missing or otherwise unusable units must be counted separately
-            and explained during settlement.
+            Unsold products are returned on or before the collect-by date. Good returns of stocked products go back
+            into inventory; made-to-order returns are recorded without changing inventory. Expired, damaged, missing
+            or otherwise unusable units must be counted separately and explained during settlement.
         </div>
 
         <table class="sign">

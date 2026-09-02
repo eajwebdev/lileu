@@ -96,7 +96,7 @@ export function ProductCard({ product }) {
                             product.in_stock ? 'bg-success-light text-success' : 'bg-cherry/10 text-cherry-dark',
                         )}
                     >
-                        {product.in_stock ? 'Available' : 'Sold out'}
+                        {product.made_to_order ? 'Made to order' : product.in_stock ? 'Available' : 'Sold out'}
                     </span>
                 </div>
             </div>

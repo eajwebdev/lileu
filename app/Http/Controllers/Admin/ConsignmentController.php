@@ -84,12 +84,13 @@ class ConsignmentController extends Controller
                 ]),
             'products' => Product::active()
                 ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'stock', 'reseller_price', 'retail_price', 'image_path'])
+                ->get(['id', 'name', 'sku', 'stock', 'tracks_stock', 'reseller_price', 'retail_price', 'image_path'])
                 ->map(fn (Product $p) => [
                     'id' => $p->id,
                     'name' => $p->name,
                     'sku' => $p->sku,
                     'stock' => $p->stock,
+                    'tracks_stock' => $p->tracksStock(),
                     'unit_price' => (float) $p->reseller_price,
                     'retail_price' => (float) $p->retail_price,
                     'image_url' => $p->image_url,
@@ -166,7 +167,7 @@ class ConsignmentController extends Controller
     {
         $this->consignments->cancel($consignment);
 
-        return back()->with('success', 'Consignment cancelled and unsold stock returned to inventory.');
+        return back()->with('success', 'Consignment cancelled; tracked stock was restored.');
     }
 
     /** The hand-over slip the seller signs when they take the goods. */
@@ -247,6 +248,7 @@ class ConsignmentController extends Controller
                 'unit_price' => (float) $i->unit_price,
                 'retail_price' => (float) $i->retail_price,
                 'margin' => round((float) $i->retail_price - (float) $i->unit_price, 2),
+                'tracks_stock' => $i->tracks_stock,
                 'quantity_issued' => $i->quantity_issued,
                 'quantity_sold' => $i->quantity_sold,
                 'quantity_returned' => $i->quantity_returned,

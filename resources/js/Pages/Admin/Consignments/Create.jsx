@@ -49,7 +49,8 @@ export default function Create({ sellers, products }) {
     const setQty = (product, quantity) =>
         setCart((prev) => {
             const next = { ...prev };
-            const clamped = Math.min(product.stock, Math.max(0, quantity));
+            const maximum = product.tracks_stock ? product.stock : 100000;
+            const clamped = Math.min(maximum, Math.max(0, quantity));
 
             if (clamped === 0) delete next[product.id];
             else next[product.id] = { quantity: clamped, unit_price: prev[product.id]?.unit_price ?? '' };
@@ -130,7 +131,10 @@ export default function Create({ sellers, products }) {
                                                 {product.name}
                                             </p>
                                             <p className="text-xs text-chocolate-400">
-                                                {product.stock} in stock · retail{' '}
+                                                {product.tracks_stock
+                                                    ? `${product.stock} in stock`
+                                                    : 'Made to order'}{' '}
+                                                · retail{' '}
                                                 <Money value={product.retail_price} decimals={0} />
                                             </p>
 
@@ -147,7 +151,7 @@ export default function Create({ sellers, products }) {
                                                 <input
                                                     type="number"
                                                     min={0}
-                                                    max={product.stock}
+                                                    max={product.tracks_stock ? product.stock : 100000}
                                                     value={qty}
                                                     onChange={(e) => setQty(product, Number(e.target.value))}
                                                     className="h-8 w-16 rounded-lg border-cream-300 bg-vanilla text-center text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
@@ -155,7 +159,7 @@ export default function Create({ sellers, products }) {
                                                 <button
                                                     type="button"
                                                     onClick={() => setQty(product, qty + 1)}
-                                                    disabled={qty >= product.stock}
+                                                    disabled={product.tracks_stock && qty >= product.stock}
                                                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
                                                     aria-label={`Add one ${product.name}`}
                                                 >
@@ -299,9 +303,9 @@ export default function Create({ sellers, products }) {
                         </Button>
 
                         <p className="mt-3 text-center text-xs leading-relaxed text-chocolate-400">
-                            Stock leaves inventory now. Whatever comes back in good condition is returned to the
-                            shelf when you settle. You can collect sales daily and keep the batch open until every
-                            unit is sold, returned, or recorded as a loss.
+                            Stocked items leave inventory now and good returns go back when settled. Made-to-order
+                            items are recorded without changing stock. Collect sales daily and keep the batch open
+                            until every unit is sold, returned, or recorded as a loss.
                         </p>
                     </Card>
                 </div>

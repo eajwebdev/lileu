@@ -99,7 +99,8 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
 
         setCart((prev) => {
             const next = { ...prev };
-            const clamped = Math.min(product.stock, Math.max(0, qty));
+            const maximum = product.tracks_stock ? product.stock : 100000;
+            const clamped = Math.min(maximum, Math.max(0, qty));
 
             if (clamped === 0) delete next[product.id];
             else next[product.id] = clamped;
@@ -239,7 +240,7 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                     key={product.id}
                                     type="button"
                                     onClick={() => setQty(product, qty + 1)}
-                                    disabled={product.stock === 0}
+                                    disabled={product.tracks_stock && product.stock === 0}
                                     aria-label={`Add ${product.name} to cart`}
                                     className={clsx(
                                         'relative flex flex-col overflow-hidden rounded-2xl border bg-vanilla text-left shadow-soft transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-55',
@@ -266,10 +267,16 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                         <p
                                             className={clsx(
                                                 'mt-0.5 text-[11px]',
-                                                product.stock > 0 ? 'text-chocolate-300' : 'text-cherry',
+                                                !product.tracks_stock || product.stock > 0
+                                                    ? 'text-chocolate-300'
+                                                    : 'text-cherry',
                                             )}
                                         >
-                                            {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                                            {!product.tracks_stock
+                                                ? 'Made to order'
+                                                : product.stock > 0
+                                                  ? `${product.stock} in stock`
+                                                  : 'Out of stock'}
                                         </p>
                                     </div>
                                 </button>
@@ -341,7 +348,10 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                             <button
                                                 type="button"
                                                 onClick={() => setQty(line.product, line.quantity + 1)}
-                                                disabled={line.quantity >= line.product.stock}
+                                                disabled={
+                                                    line.product.tracks_stock &&
+                                                    line.quantity >= line.product.stock
+                                                }
                                                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-cream-300 text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
                                                 aria-label={`Increase ${line.product.name}`}
                                             >

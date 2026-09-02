@@ -43,7 +43,11 @@ export default function Product({ product, related }) {
                                         : 'bg-cherry/10 text-cherry-dark',
                                 )}
                             >
-                                {product.in_stock ? 'Available now' : 'Sold out'}
+                                {product.made_to_order
+                                    ? 'Made to order'
+                                    : product.in_stock
+                                      ? 'Available now'
+                                      : 'Sold out'}
                             </span>
                         </div>
 

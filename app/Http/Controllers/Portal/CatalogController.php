@@ -37,7 +37,8 @@ class CatalogController extends Controller
                 'retail_price' => (float) $p->retail_price,
                 'margin' => round((float) $p->retail_price - $this->orders->priceFor($reseller, $p), 2),
                 'min_qty' => $p->min_reseller_qty,
-                'in_stock' => $p->stock > 0,
+                'in_stock' => $p->isAvailable(),
+                'made_to_order' => ! $p->tracksStock(),
             ])->values(),
             'isCurated' => $curated->isNotEmpty(),
         ]);

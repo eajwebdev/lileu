@@ -97,6 +97,33 @@ class PosSaleFlowTest extends TestCase
         $this->assertDatabaseCount('pos_sale_items', 0);
     }
 
+    public function test_made_to_order_product_can_be_sold_at_zero_stock_without_changing_inventory(): void
+    {
+        $this->product->update([
+            'tracks_stock' => false,
+            'stock' => 0,
+        ]);
+
+        $response = $this->actingAs($this->cashier)->post(route('pos.sales.store'), [
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 25,
+            ]],
+            'discount' => 0,
+            'method' => 'cash',
+            'amount_tendered' => 375,
+        ]);
+
+        $response->assertRedirect(route('pos.index'));
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(0, $this->product->refresh()->stock);
+        $this->assertDatabaseHas('pos_sale_items', [
+            'product_id' => $this->product->id,
+            'quantity' => 25,
+            'line_total' => 375,
+        ]);
+    }
+
     public function test_cash_sale_is_rejected_when_discount_or_cash_received_is_invalid(): void
     {
         $tooMuchDiscount = $this->actingAs($this->cashier)

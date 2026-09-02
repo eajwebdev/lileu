@@ -29,6 +29,7 @@ const BLANK = {
     reseller_price: '',
     cost_price: '',
     stock: 0,
+    tracks_stock: true,
     low_stock_threshold: 10,
     min_reseller_qty: 10,
     is_active: true,
@@ -64,6 +65,7 @@ export default function Index({ products, categories, filters }) {
             reseller_price: product.reseller_price,
             cost_price: product.cost_price,
             stock: product.stock,
+            tracks_stock: product.tracks_stock,
             low_stock_threshold: product.low_stock_threshold,
             min_reseller_qty: product.min_reseller_qty,
             is_active: product.is_active,
@@ -175,16 +177,20 @@ export default function Index({ products, categories, filters }) {
                                             <Money value={product.cost_price} />
                                         </td>
                                         <td className="text-right">
-                                            <span
-                                                className={clsx(
-                                                    'badge',
-                                                    product.is_low_stock
-                                                        ? 'bg-caramel-soft/30 text-caramel-dark'
-                                                        : 'bg-success-light text-success',
-                                                )}
-                                            >
-                                                {product.stock}
-                                            </span>
+                                            {product.tracks_stock ? (
+                                                <span
+                                                    className={clsx(
+                                                        'badge',
+                                                        product.is_low_stock
+                                                            ? 'bg-caramel-soft/30 text-caramel-dark'
+                                                            : 'bg-success-light text-success',
+                                                    )}
+                                                >
+                                                    {product.stock}
+                                                </span>
+                                            ) : (
+                                                <Badge tone="blush">Made to order</Badge>
+                                            )}
                                         </td>
                                         <td>
                                             <div className="flex flex-wrap gap-1">
@@ -319,21 +325,40 @@ export default function Index({ products, categories, filters }) {
                         />
                     </Field>
 
-                    <Field label="Stock on hand" required error={form.errors.stock}>
-                        <Input
-                            type="number"
-                            value={form.data.stock}
-                            onChange={(e) => form.setData('stock', e.target.value)}
-                        />
+                    <Field
+                        label="Inventory mode"
+                        hint="Made-to-order products stay sellable even with zero stock."
+                        error={form.errors.tracks_stock}
+                        className="sm:col-span-2"
+                    >
+                        <Select
+                            value={form.data.tracks_stock ? 'stocked' : 'made_to_order'}
+                            onChange={(e) => form.setData('tracks_stock', e.target.value === 'stocked')}
+                        >
+                            <option value="stocked">Stocked — count and deduct inventory</option>
+                            <option value="made_to_order">Made to order — always available</option>
+                        </Select>
                     </Field>
 
-                    <Field label="Low stock alert at" required error={form.errors.low_stock_threshold}>
-                        <Input
-                            type="number"
-                            value={form.data.low_stock_threshold}
-                            onChange={(e) => form.setData('low_stock_threshold', e.target.value)}
-                        />
-                    </Field>
+                    {form.data.tracks_stock && (
+                        <>
+                            <Field label="Stock on hand" required error={form.errors.stock}>
+                                <Input
+                                    type="number"
+                                    value={form.data.stock}
+                                    onChange={(e) => form.setData('stock', e.target.value)}
+                                />
+                            </Field>
+
+                            <Field label="Low stock alert at" required error={form.errors.low_stock_threshold}>
+                                <Input
+                                    type="number"
+                                    value={form.data.low_stock_threshold}
+                                    onChange={(e) => form.setData('low_stock_threshold', e.target.value)}
+                                />
+                            </Field>
+                        </>
+                    )}
 
                     <Field label="Minimum reseller qty" required error={form.errors.min_reseller_qty}>
                         <Input

@@ -123,6 +123,38 @@ class ConsignmentFlowTest extends TestCase
         $this->assertCount(2, $consignment->settlements);
     }
 
+    public function test_made_to_order_product_can_be_consigned_and_returned_without_changing_inventory(): void
+    {
+        $this->product->update([
+            'tracks_stock' => false,
+            'stock' => 0,
+        ]);
+
+        $consignment = $this->issue(25);
+        $item = $consignment->items()->firstOrFail();
+
+        $this->assertFalse($item->tracks_stock);
+        $this->assertSame(0, $this->product->refresh()->stock);
+
+        $this->consignments->settle($consignment, [[
+            'consignment_item_id' => $item->id,
+            'sold' => 5,
+            'returned' => 15,
+            'expired' => 3,
+            'damaged' => 2,
+        ]], [
+            'settled_on' => now()->toDateString(),
+            'method' => 'cash',
+            'is_final' => true,
+        ], $this->admin);
+
+        $consignment->refresh();
+        $this->assertSame(Consignment::STATUS_SETTLED, $consignment->status);
+        $this->assertSame(0, $consignment->outstandingQuantity());
+        $this->assertSame(15, $consignment->quantity_returned);
+        $this->assertSame(0, $this->product->refresh()->stock);
+    }
+
     public function test_a_final_collection_cannot_hide_units_that_are_still_out(): void
     {
         $consignment = $this->issue(10);

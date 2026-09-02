@@ -3,16 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
     protected $fillable = [
         'category_id', 'name', 'slug', 'sku', 'description', 'image_path',
-        'retail_price', 'reseller_price', 'cost_price', 'stock', 'low_stock_threshold',
+        'retail_price', 'reseller_price', 'cost_price', 'stock', 'tracks_stock', 'low_stock_threshold',
         'min_reseller_qty', 'is_active', 'is_featured', 'available_to_resellers', 'sort_order',
     ];
 
@@ -20,6 +20,7 @@ class Product extends Model
         'retail_price' => 'decimal:2',
         'reseller_price' => 'decimal:2',
         'cost_price' => 'decimal:2',
+        'tracks_stock' => 'boolean',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'available_to_resellers' => 'boolean',
@@ -52,7 +53,17 @@ class Product extends Model
 
     public function getIsLowStockAttribute(): bool
     {
-        return $this->stock <= $this->low_stock_threshold;
+        return $this->tracksStock() && $this->stock <= $this->low_stock_threshold;
+    }
+
+    public function tracksStock(): bool
+    {
+        return (bool) ($this->tracks_stock ?? true);
+    }
+
+    public function isAvailable(): bool
+    {
+        return ! $this->tracksStock() || $this->stock > 0;
     }
 
     public function scopeActive(Builder $query): Builder
