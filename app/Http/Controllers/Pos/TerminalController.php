@@ -11,6 +11,7 @@ use App\Support\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -49,7 +50,7 @@ class TerminalController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'method' => ['required', 'in:cash,gcash,qrph,card'],
@@ -58,7 +59,10 @@ class TerminalController extends Controller
         ]);
 
         $sale = DB::transaction(function () use ($data, $request) {
-            $products = Product::whereIn('id', collect($data['items'])->pluck('product_id'))->get()->keyBy('id');
+            $products = Product::whereIn('id', collect($data['items'])->pluck('product_id'))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
             $subtotal = 0.0;
             $rows = [];
@@ -67,10 +71,19 @@ class TerminalController extends Controller
                 $product = $products->get((int) $line['product_id']);
 
                 if (! $product) {
-                    continue;
+                    throw ValidationException::withMessages([
+                        'items' => 'One of the selected products is no longer available.',
+                    ]);
                 }
 
                 $qty = (int) $line['quantity'];
+
+                if ($qty > $product->stock) {
+                    throw ValidationException::withMessages([
+                        'items' => "{$product->name}: only {$product->stock} pcs are currently in stock.",
+                    ]);
+                }
+
                 $lineTotal = round((float) $product->retail_price * $qty, 2);
                 $subtotal += $lineTotal;
 
@@ -82,12 +95,27 @@ class TerminalController extends Controller
                     'line_total' => $lineTotal,
                 ];
 
-                $product->decrement('stock', min($qty, $product->stock));
+                $product->decrement('stock', $qty);
             }
 
             $discount = round((float) ($data['discount'] ?? 0), 2);
+
+            if ($discount > $subtotal) {
+                throw ValidationException::withMessages([
+                    'discount' => 'Discount cannot be greater than the subtotal.',
+                ]);
+            }
+
             $total = round(max($subtotal - $discount, 0), 2);
-            $tendered = round((float) ($data['amount_tendered'] ?? $total), 2);
+            $tendered = $data['method'] === 'cash'
+                ? round((float) ($data['amount_tendered'] ?? $total), 2)
+                : $total;
+
+            if ($data['method'] === 'cash' && $tendered < $total) {
+                throw ValidationException::withMessages([
+                    'amount_tendered' => 'Cash received is less than the sale total.',
+                ]);
+            }
 
             $sale = PosSale::create([
                 'sale_number' => $this->numbers->posSaleNumber(),

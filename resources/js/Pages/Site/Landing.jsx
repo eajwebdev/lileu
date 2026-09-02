@@ -248,7 +248,7 @@ export default function Landing({ featured, categories, stats }) {
                             <span className="leading-tight">
                                 <span className="block text-xs font-medium text-chocolate-400">Reseller margin</span>
                                 <span className="block font-display text-base font-semibold text-chocolate-700">
-                                    up to ₱4.50 a piece
+                                    up to ₱3 / cup
                                 </span>
                             </span>
                         </div>
