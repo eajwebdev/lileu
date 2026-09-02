@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { ArrowLeft, HandCoins, Minus, Plus, Search, Trash2 } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
@@ -18,14 +18,22 @@ export default function Create({ sellers, products }) {
         notes: '',
     });
 
+    // Keep the tablet workspace fixed; only long product and batch lists scroll.
+    useEffect(() => {
+        const bodyOverflow = document.body.style.overflow;
+        const htmlOverflow = document.documentElement.style.overflow;
+
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = bodyOverflow;
+            document.documentElement.style.overflow = htmlOverflow;
+        };
+    }, []);
+
     const visible = useMemo(
-        () =>
-            products.filter(
-                (p) =>
-                    !term ||
-                    p.name.toLowerCase().includes(term.toLowerCase()) ||
-                    p.sku.toLowerCase().includes(term.toLowerCase()),
-            ),
+        () => products.filter((p) => !term || p.name.toLowerCase().includes(term.toLowerCase()) || p.sku.toLowerCase().includes(term.toLowerCase())),
         [products, term],
     );
 
@@ -37,7 +45,12 @@ export default function Create({ sellers, products }) {
                     const product = products.find((p) => String(p.id) === id);
                     const unitPrice = row.unit_price === '' ? product.unit_price : Number(row.unit_price);
 
-                    return { product, quantity: row.quantity, unitPrice, lineTotal: unitPrice * row.quantity };
+                    return {
+                        product,
+                        quantity: row.quantity,
+                        unitPrice,
+                        lineTotal: unitPrice * row.quantity,
+                    };
                 }),
         [cart, products],
     );
@@ -53,7 +66,11 @@ export default function Create({ sellers, products }) {
             const clamped = Math.min(maximum, Math.max(0, quantity));
 
             if (clamped === 0) delete next[product.id];
-            else next[product.id] = { quantity: clamped, unit_price: prev[product.id]?.unit_price ?? '' };
+            else
+                next[product.id] = {
+                    quantity: clamped,
+                    unit_price: prev[product.id]?.unit_price ?? '',
+                };
 
             return next;
         });
@@ -61,7 +78,10 @@ export default function Create({ sellers, products }) {
     const setPrice = (product, value) =>
         setCart((prev) => ({
             ...prev,
-            [product.id]: { quantity: prev[product.id]?.quantity ?? 0, unit_price: value },
+            [product.id]: {
+                quantity: prev[product.id]?.quantity ?? 0,
+                unit_price: value,
+            },
         }));
 
     const submit = (e) => {
@@ -83,6 +103,7 @@ export default function Create({ sellers, products }) {
         <AdminLayout
             title="Issue a consignment"
             subtitle="Hand stock to a seller now, settle the cash and returns later."
+            workspace
             action={
                 <Link
                     href={route('admin.consignments.index')}
@@ -92,22 +113,32 @@ export default function Create({ sellers, products }) {
                 </Link>
             }
         >
-            <form onSubmit={submit} className="grid gap-5 xl:grid-cols-[1.6fr_1fr] xl:items-start">
-                <div>
-                    <div className="relative mb-4">
-                        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-chocolate-300" />
-                        <Input
-                            value={term}
-                            onChange={(e) => setTerm(e.target.value)}
-                            placeholder="Search product or SKU…"
-                            className="pl-10"
-                        />
+            <form
+                onSubmit={submit}
+                className="grid min-h-0 flex-1 grid-rows-[minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 overflow-hidden md:grid-cols-[minmax(0,1fr)_21rem] md:grid-rows-1 xl:grid-cols-[minmax(0,1.6fr)_23rem]"
+            >
+                <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+                    <div className="mb-2.5 flex shrink-0 items-center gap-2">
+                        <div className="relative min-w-0 flex-1">
+                            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-chocolate-300" />
+                            <Input
+                                value={term}
+                                onChange={(e) => setTerm(e.target.value)}
+                                placeholder="Search product or SKU…"
+                                className="h-11 pl-10 text-base"
+                            />
+                        </div>
+                        <span className="hidden shrink-0 rounded-xl bg-vanilla px-3 py-2.5 text-xs font-semibold text-chocolate-400 sm:inline-flex">
+                            {visible.length} products
+                        </span>
                     </div>
 
                     {visible.length === 0 ? (
-                        <EmptyState icon={HandCoins} title="Nothing matches that" />
+                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                            <EmptyState icon={HandCoins} title="Nothing matches that" />
+                        </div>
                     ) : (
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 pb-2 xl:grid-cols-2">
                             {visible.map((product) => {
                                 const row = cart[product.id];
                                 const qty = row?.quantity ?? 0;
@@ -116,34 +147,27 @@ export default function Create({ sellers, products }) {
                                     <div
                                         key={product.id}
                                         className={clsx(
-                                            'flex gap-3 rounded-2xl border p-3 transition',
-                                            qty > 0
-                                                ? 'border-blush-300 bg-blush-50 shadow-soft'
-                                                : 'border-cream-300/70 bg-vanilla',
+                                            'flex min-h-24 gap-2.5 rounded-2xl border p-2.5 transition',
+                                            qty > 0 ? 'border-blush-300 bg-blush-50 shadow-soft' : 'border-cream-300/70 bg-vanilla',
                                         )}
                                     >
-                                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-cream-200">
+                                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-cream-200 sm:h-18 sm:w-18">
                                             <ProductImage product={product} />
                                         </div>
 
                                         <div className="flex min-w-0 flex-1 flex-col">
-                                            <p className="truncate font-semibold text-chocolate-700">
-                                                {product.name}
-                                            </p>
+                                            <p className="truncate font-semibold text-chocolate-700">{product.name}</p>
                                             <p className="text-xs text-chocolate-400">
-                                                {product.tracks_stock
-                                                    ? `${product.stock} in stock`
-                                                    : 'Made to order'}{' '}
-                                                · retail{' '}
+                                                {product.tracks_stock ? `${product.stock} in stock` : 'Made to order'} · retail{' '}
                                                 <Money value={product.retail_price} decimals={0} />
                                             </p>
 
-                                            <div className="mt-auto flex items-center gap-2 pt-2">
+                                            <div className="mt-auto flex items-center gap-1.5 pt-1.5">
                                                 <button
                                                     type="button"
                                                     onClick={() => setQty(product, qty - 1)}
                                                     disabled={qty === 0}
-                                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
+                                                    className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 active:scale-95 disabled:opacity-40"
                                                     aria-label={`Remove one ${product.name}`}
                                                 >
                                                     <Minus className="h-4 w-4" />
@@ -154,13 +178,13 @@ export default function Create({ sellers, products }) {
                                                     max={product.tracks_stock ? product.stock : 100000}
                                                     value={qty}
                                                     onChange={(e) => setQty(product, Number(e.target.value))}
-                                                    className="h-8 w-16 rounded-lg border-cream-300 bg-vanilla text-center text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
+                                                    className="h-9 w-14 rounded-lg border-cream-300 bg-vanilla text-center text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => setQty(product, qty + 1)}
                                                     disabled={product.tracks_stock && qty >= product.stock}
-                                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
+                                                    className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 active:scale-95 disabled:opacity-40"
                                                     aria-label={`Add one ${product.name}`}
                                                 >
                                                     <Plus className="h-4 w-4" />
@@ -174,7 +198,7 @@ export default function Create({ sellers, products }) {
                                                         onChange={(e) => setPrice(product, e.target.value)}
                                                         placeholder={String(product.unit_price)}
                                                         title="Price the seller remits per unit"
-                                                        className="ml-auto h-8 w-20 rounded-lg border-cream-300 bg-vanilla text-right text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
+                                                        className="ml-auto h-9 min-w-0 w-18 rounded-lg border-cream-300 bg-vanilla text-right text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
                                                     />
                                                 )}
                                             </div>
@@ -184,18 +208,18 @@ export default function Create({ sellers, products }) {
                             })}
                         </div>
                     )}
-                </div>
+                </section>
 
-                <div className="space-y-4 xl:sticky xl:top-6">
-                    <Card className="card-pad">
-                        <h2 className="font-display text-lg font-semibold text-chocolate-700">Batch details</h2>
+                <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain md:overflow-hidden">
+                    <Card className="shrink-0 p-3 sm:p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <h2 className="font-display text-base font-semibold text-chocolate-700">Batch details</h2>
+                            <span className="text-xs text-chocolate-300">Who gets it and when</span>
+                        </div>
 
-                        <div className="mt-4 space-y-4">
+                        <div className="mt-2.5 space-y-2.5">
                             <Field label="Seller" required error={errors.reseller_id}>
-                                <Select
-                                    value={data.reseller_id}
-                                    onChange={(e) => setData('reseller_id', e.target.value)}
-                                >
+                                <Select value={data.reseller_id} onChange={(e) => setData('reseller_id', e.target.value)}>
                                     <option value="">Choose a seller…</option>
                                     {sellers.map((seller) => (
                                         <option key={seller.id} value={seller.id}>
@@ -206,30 +230,18 @@ export default function Create({ sellers, products }) {
                                 </Select>
                             </Field>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Field label="Issued on" required error={errors.issued_on}>
-                                    <Input
-                                        type="date"
-                                        value={data.issued_on}
-                                        onChange={(e) => setData('issued_on', e.target.value)}
-                                    />
+                                    <Input type="date" value={data.issued_on} onChange={(e) => setData('issued_on', e.target.value)} />
                                 </Field>
-                                <Field
-                                    label="Collect by"
-                                    hint="Usually today or tomorrow."
-                                    error={errors.due_on}
-                                >
-                                    <Input
-                                        type="date"
-                                        value={data.due_on}
-                                        onChange={(e) => setData('due_on', e.target.value)}
-                                    />
+                                <Field label="Collect by" error={errors.due_on}>
+                                    <Input type="date" value={data.due_on} onChange={(e) => setData('due_on', e.target.value)} />
                                 </Field>
                             </div>
 
                             <Field label="Notes" error={errors.notes}>
                                 <Textarea
-                                    rows={2}
+                                    rows={1}
                                     value={data.notes}
                                     onChange={(e) => setData('notes', e.target.value)}
                                     placeholder="Selling at the school canteen until 4 PM."
@@ -238,21 +250,22 @@ export default function Create({ sellers, products }) {
                         </div>
                     </Card>
 
-                    <Card className="card-pad">
-                        <h2 className="font-display text-lg font-semibold text-chocolate-700">Going out</h2>
+                    <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+                        <div className="flex shrink-0 items-center justify-between gap-3">
+                            <h2 className="font-display text-base font-semibold text-chocolate-700">Going out</h2>
+                            <span className="rounded-lg bg-cream-200 px-2 py-1 text-xs font-semibold tabular-nums text-chocolate-500">{issuedQty} pcs</span>
+                        </div>
 
                         {lines.length === 0 ? (
-                            <p className="mt-3 rounded-xl border border-dashed border-cream-300 px-4 py-6 text-center text-sm text-chocolate-400">
+                            <p className="mt-2 flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed border-cream-300 px-4 text-center text-sm text-chocolate-400">
                                 Pick the products to hand over.
                             </p>
                         ) : (
-                            <ul className="mt-3 divide-y divide-cream-200">
+                            <ul className="mt-2 min-h-0 flex-1 divide-y divide-cream-200 overflow-y-auto overscroll-contain pr-1">
                                 {lines.map((line) => (
-                                    <li key={line.product.id} className="flex items-center gap-3 py-2.5">
+                                    <li key={line.product.id} className="flex items-center gap-2 py-2">
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-medium text-chocolate-700">
-                                                {line.product.name}
-                                            </p>
+                                            <p className="truncate text-sm font-medium text-chocolate-700">{line.product.name}</p>
                                             <p className="text-xs text-chocolate-400">
                                                 {line.quantity} × <Money value={line.unitPrice} />
                                             </p>
@@ -275,7 +288,7 @@ export default function Create({ sellers, products }) {
 
                         {errors.items && <p className="mt-2 text-xs font-medium text-cherry">{errors.items}</p>}
 
-                        <dl className="mt-4 space-y-1.5 border-t border-cream-300 pt-4 text-sm">
+                        <dl className="mt-2 shrink-0 space-y-1 border-t border-cream-300 pt-2 text-sm">
                             <div className="flex justify-between text-chocolate-500">
                                 <dt>Units out</dt>
                                 <dd className="tabular-nums">{issuedQty}</dd>
@@ -297,18 +310,16 @@ export default function Create({ sellers, products }) {
                         <Button
                             type="submit"
                             disabled={processing || lines.length === 0 || !data.reseller_id}
-                            className="mt-4 w-full py-3 text-base"
+                            className="mt-2.5 w-full shrink-0 py-3 text-base"
                         >
                             <HandCoins className="h-4 w-4" /> Issue consignment
                         </Button>
 
-                        <p className="mt-3 text-center text-xs leading-relaxed text-chocolate-400">
-                            Stocked items leave inventory now and good returns go back when settled. Made-to-order
-                            items are recorded without changing stock. Collect sales daily and keep the batch open
-                            until every unit is sold, returned, or recorded as a loss.
+                        <p className="mt-2 shrink-0 text-center text-[10px] leading-tight text-chocolate-300">
+                            Stocked items change inventory; made-to-order items do not.
                         </p>
                     </Card>
-                </div>
+                </aside>
             </form>
         </AdminLayout>
     );

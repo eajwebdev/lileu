@@ -22,32 +22,94 @@ import { FlashToasts, Logo } from '@/Components/Lileu/ui';
 const GROUPS = [
     {
         label: 'Overview',
-        items: [{ label: 'Dashboard', icon: LayoutDashboard, route: 'admin.dashboard', match: 'admin.dashboard' }],
+        items: [
+            {
+                label: 'Dashboard',
+                icon: LayoutDashboard,
+                route: 'admin.dashboard',
+                match: 'admin.dashboard',
+            },
+        ],
     },
     {
         label: 'Selling',
         items: [
-            { label: 'Reseller Orders', icon: Receipt, route: 'admin.orders.index', match: 'admin.orders.*' },
-            { label: 'Consignments', icon: HandCoins, route: 'admin.consignments.index', match: 'admin.consignments.*' },
-            { label: 'Payments', icon: CreditCard, route: 'admin.payments.index', match: 'admin.payments.index' },
-            { label: 'Resellers', icon: UsersRound, route: 'admin.resellers.index', match: 'admin.resellers.*' },
-            { label: 'Messages', icon: MessageCircle, route: 'admin.messages.index', match: 'admin.messages.*' },
+            {
+                label: 'Reseller Orders',
+                icon: Receipt,
+                route: 'admin.orders.index',
+                match: 'admin.orders.*',
+            },
+            {
+                label: 'Consignments',
+                icon: HandCoins,
+                route: 'admin.consignments.index',
+                match: 'admin.consignments.*',
+            },
+            {
+                label: 'Payments',
+                icon: CreditCard,
+                route: 'admin.payments.index',
+                match: 'admin.payments.index',
+            },
+            {
+                label: 'Resellers',
+                icon: UsersRound,
+                route: 'admin.resellers.index',
+                match: 'admin.resellers.*',
+            },
+            {
+                label: 'Messages',
+                icon: MessageCircle,
+                route: 'admin.messages.index',
+                match: 'admin.messages.*',
+            },
         ],
     },
     {
         label: 'Operations',
         items: [
-            { label: 'Products', icon: Package, route: 'admin.products.index', match: 'admin.products.*' },
-            { label: 'Point of Sale', icon: ShoppingCart, route: 'pos.index', match: 'pos.index' },
-            { label: 'Expenses & Purchases', icon: BookOpen, route: 'admin.ledger.index', match: 'admin.ledger.*' },
-            { label: 'Reports', icon: ChartNoAxesColumn, route: 'admin.reports.index', match: 'admin.reports.*' },
+            {
+                label: 'Products',
+                icon: Package,
+                route: 'admin.products.index',
+                match: 'admin.products.*',
+            },
+            {
+                label: 'Point of Sale',
+                icon: ShoppingCart,
+                route: 'pos.index',
+                match: 'pos.index',
+            },
+            {
+                label: 'Expenses & Purchases',
+                icon: BookOpen,
+                route: 'admin.ledger.index',
+                match: 'admin.ledger.*',
+            },
+            {
+                label: 'Reports',
+                icon: ChartNoAxesColumn,
+                route: 'admin.reports.index',
+                match: 'admin.reports.*',
+            },
         ],
     },
     {
         label: 'Settings',
         items: [
-            { label: 'Users', icon: Users, route: 'admin.users.index', match: 'admin.users.*' },
-            { label: 'Brand & Receipts', icon: Settings, route: 'admin.settings.edit', match: 'admin.settings.*' },
+            {
+                label: 'Users',
+                icon: Users,
+                route: 'admin.users.index',
+                match: 'admin.users.*',
+            },
+            {
+                label: 'Brand & Receipts',
+                icon: Settings,
+                route: 'admin.settings.edit',
+                match: 'admin.settings.*',
+            },
         ],
     },
 ];
@@ -61,18 +123,14 @@ function SidebarContent({ onNavigate }) {
                 <Logo className="h-10 w-10" />
                 <span className="leading-tight">
                     <span className="block font-display text-base font-semibold text-cream-100">{brand?.name}</span>
-                    <span className="block text-[11px] uppercase tracking-[0.16em] text-blush-300">
-                        Management
-                    </span>
+                    <span className="block text-[11px] uppercase tracking-[0.16em] text-blush-300">Management</span>
                 </span>
             </div>
 
             <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
                 {GROUPS.map((group) => (
                     <div key={group.label}>
-                        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cream-200/40">
-                            {group.label}
-                        </p>
+                        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cream-200/40">{group.label}</p>
                         <div className="space-y-0.5">
                             {group.items.map((item) => {
                                 const active = route().current(item.match);
@@ -89,9 +147,7 @@ function SidebarContent({ onNavigate }) {
                                                 : 'text-cream-200/70 hover:bg-cream-100/10 hover:text-cream-100',
                                         )}
                                     >
-                                        <item.icon
-                                            className={clsx('h-[1.125rem] w-[1.125rem] shrink-0', active ? 'text-blush-500' : '')}
-                                        />
+                                        <item.icon className={clsx('h-[1.125rem] w-[1.125rem] shrink-0', active ? 'text-blush-500' : '')} />
                                         <span className="truncate">{item.label}</span>
                                     </Link>
                                 );
@@ -108,9 +164,7 @@ function SidebarContent({ onNavigate }) {
                     </span>
                     <span className="min-w-0 flex-1 leading-tight">
                         <span className="block truncate text-sm font-medium text-cream-100">{auth?.user?.name}</span>
-                        <span className="block truncate text-[11px] capitalize text-cream-200/50">
-                            {auth?.user?.role}
-                        </span>
+                        <span className="block truncate text-[11px] capitalize text-cream-200/50">{auth?.user?.role}</span>
                     </span>
                     <button
                         type="button"
@@ -126,33 +180,30 @@ function SidebarContent({ onNavigate }) {
     );
 }
 
-export default function AdminLayout({ title, subtitle, action, children }) {
+export default function AdminLayout({ title, subtitle, action, children, workspace = false }) {
     const [open, setOpen] = useState(false);
 
     return (
-        <div className="min-h-screen bg-cream-100">
+        <div className={clsx('bg-cream-100', workspace ? 'h-screen max-h-screen h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none' : 'min-h-screen')}>
             <Head title={title} />
             <FlashToasts />
 
-            <div className="flex">
+            <div className={clsx('flex', workspace && 'h-full min-h-0')}>
                 <aside className="no-print sticky top-0 hidden h-screen w-64 shrink-0 lg:block">
                     <SidebarContent />
                 </aside>
 
                 {open && (
                     <div className="no-print fixed inset-0 z-50 lg:hidden">
-                        <div
-                            className="absolute inset-0 bg-chocolate-900/50 backdrop-blur-sm"
-                            onClick={() => setOpen(false)}
-                        />
+                        <div className="absolute inset-0 bg-chocolate-900/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
                         <aside className="absolute inset-y-0 left-0 w-72 animate-fade-up">
                             <SidebarContent onNavigate={() => setOpen(false)} />
                         </aside>
                     </div>
                 )}
 
-                <div className="min-w-0 flex-1">
-                    <header className="no-print sticky top-0 z-30 flex items-center gap-3 border-b border-cream-300/60 bg-cream-100/90 px-4 py-3 backdrop-blur-md lg:hidden">
+                <div className={clsx('min-w-0 flex-1', workspace && 'flex min-h-0 flex-col overflow-hidden')}>
+                    <header className="no-print sticky top-0 z-30 flex shrink-0 items-center gap-3 border-b border-cream-300/60 bg-cream-100/90 px-4 py-3 backdrop-blur-md lg:hidden">
                         <button
                             type="button"
                             onClick={() => setOpen(true)}
@@ -164,18 +215,20 @@ export default function AdminLayout({ title, subtitle, action, children }) {
                         <span className="font-display text-lg font-semibold text-chocolate-700">{title}</span>
                     </header>
 
-                    <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                        <div className="mb-6 hidden flex-wrap items-end justify-between gap-3 lg:flex">
+                    <main
+                        className={clsx(
+                            workspace ? 'flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 sm:px-6 lg:px-8 lg:py-4' : 'px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
+                        )}
+                    >
+                        <div className={clsx('hidden flex-wrap items-end justify-between gap-3 lg:flex', workspace ? 'mb-3 shrink-0' : 'mb-6')}>
                             <div>
-                                <h1 className="font-display text-2xl font-semibold tracking-tight text-chocolate-700 sm:text-3xl">
-                                    {title}
-                                </h1>
+                                <h1 className="font-display text-2xl font-semibold tracking-tight text-chocolate-700 sm:text-3xl">{title}</h1>
                                 {subtitle && <p className="mt-1 text-sm text-chocolate-400">{subtitle}</p>}
                             </div>
                             {action}
                         </div>
 
-                        {action && <div className="mb-5 lg:hidden">{action}</div>}
+                        {action && <div className={clsx('lg:hidden', workspace ? 'mb-2 shrink-0' : 'mb-5')}>{action}</div>}
 
                         {children}
                     </main>
