@@ -185,8 +185,8 @@
             These goods remain the property of {{ $clean($brand['name']) }} until they are sold. The seller remits the
             <strong>remit price</strong> for every unit sold and keeps the difference from the retail price.
             Unsold stock is returned on or before the collect-by date. Units returned in good condition go back into
-            inventory at no charge; units that are expired, damaged or unaccounted for are charged to the seller at
-            the remit price unless agreed otherwise.
+            inventory at no charge. Expired, damaged, missing or otherwise unusable units must be counted separately
+            and explained during settlement.
         </div>
 
         <table class="sign">

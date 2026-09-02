@@ -49,7 +49,7 @@ export default function Create({ sellers, products }) {
     const setQty = (product, quantity) =>
         setCart((prev) => {
             const next = { ...prev };
-            const clamped = Math.max(0, quantity);
+            const clamped = Math.min(product.stock, Math.max(0, quantity));
 
             if (clamped === 0) delete next[product.id];
             else next[product.id] = { quantity: clamped, unit_price: prev[product.id]?.unit_price ?? '' };
@@ -300,7 +300,8 @@ export default function Create({ sellers, products }) {
 
                         <p className="mt-3 text-center text-xs leading-relaxed text-chocolate-400">
                             Stock leaves inventory now. Whatever comes back in good condition is returned to the
-                            shelf when you settle.
+                            shelf when you settle. You can collect sales daily and keep the batch open until every
+                            unit is sold, returned, or recorded as a loss.
                         </p>
                     </Card>
                 </div>

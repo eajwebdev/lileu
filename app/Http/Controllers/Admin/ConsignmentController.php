@@ -14,6 +14,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -99,9 +100,12 @@ class ConsignmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'reseller_id' => ['required', 'exists:resellers,id'],
+            'reseller_id' => [
+                'required',
+                Rule::exists('resellers', 'id')->where('status', Reseller::STATUS_APPROVED),
+            ],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'issued_on' => ['required', 'date'],
@@ -139,7 +143,7 @@ class ConsignmentController extends Controller
     {
         $data = $request->validate([
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.consignment_item_id' => ['required', 'integer', 'exists:consignment_items,id'],
+            'lines.*.consignment_item_id' => ['required', 'integer', 'distinct', 'exists:consignment_items,id'],
             'lines.*.sold' => ['nullable', 'integer', 'min:0'],
             'lines.*.returned' => ['nullable', 'integer', 'min:0'],
             'lines.*.expired' => ['nullable', 'integer', 'min:0'],

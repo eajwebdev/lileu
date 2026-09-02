@@ -166,7 +166,7 @@
                     <th class="ctr">Returned</th>
                     <th class="ctr">Expired</th>
                     <th class="ctr">Damaged</th>
-                    <th class="ctr">Missing</th>
+                    <th class="ctr">Missing / other</th>
                     <th class="num">Unit Price</th>
                     <th class="num">Amount</th>
                 </tr>
@@ -234,7 +234,7 @@
                 <td class="num">{{ $totals['quantity_returned'] }} pcs</td>
             </tr>
             <tr>
-                <td>Expired / damaged / missing</td>
+                <td>Expired / damaged / missing / other</td>
                 <td class="num">{{ $totals['quantity_expired'] + $totals['quantity_damaged'] + $totals['quantity_missing'] }} pcs</td>
             </tr>
             <tr>

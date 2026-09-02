@@ -28,7 +28,24 @@ class ConsignmentService
     public function issue(Reseller $seller, array $lines, array $attributes, ?User $by = null): Consignment
     {
         return DB::transaction(function () use ($seller, $lines, $attributes, $by) {
-            $products = Product::whereIn('id', collect($lines)->pluck('product_id'))->get()->keyBy('id');
+            abort_unless($seller->isApproved(), 422, 'Only an approved seller can receive consigned stock.');
+
+            $productIds = collect($lines)
+                ->pluck('product_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter();
+
+            abort_if(
+                $productIds->duplicates()->isNotEmpty(),
+                422,
+                'Each product can appear only once in a consignment.',
+            );
+
+            // Keep the stock check and deduction atomic when two people issue stock at once.
+            $products = Product::whereIn('id', $productIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
             $rows = [];
             $issuedQty = 0;
@@ -41,6 +58,12 @@ class ConsignmentService
                 if (! $product || $quantity < 1) {
                     continue;
                 }
+
+                abort_if(
+                    $quantity > $product->stock,
+                    422,
+                    "{$product->name}: only {$product->stock} pcs are available, but {$quantity} were requested.",
+                );
 
                 // Default to the wholesale rate: the seller keeps retail minus this.
                 $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== ''
@@ -61,7 +84,7 @@ class ConsignmentService
                 $issuedValue += $unitPrice * $quantity;
 
                 // The goods are gone from our shelf the moment they are handed over.
-                $product->decrement('stock', min($quantity, $product->stock));
+                $product->decrement('stock', $quantity);
             }
 
             abort_if($rows === [], 422, 'A consignment needs at least one product.');
@@ -91,20 +114,31 @@ class ConsignmentService
      */
     public function settle(Consignment $consignment, array $lines, array $attributes, ?User $by = null): ConsignmentSettlement
     {
-        abort_unless($consignment->isOpen(), 422, 'This consignment is already closed.');
-
         return DB::transaction(function () use ($consignment, $lines, $attributes, $by) {
-            $items = $consignment->items()->get()->keyBy('id');
+            $consignment = Consignment::query()->lockForUpdate()->findOrFail($consignment->id);
+            abort_unless($consignment->isOpen(), 422, 'This consignment is already closed.');
+
+            $lineIds = collect($lines)
+                ->pluck('consignment_item_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter();
+
+            abort_if(
+                $lineIds->duplicates()->isNotEmpty(),
+                422,
+                'Each consignment item can appear only once in a collection.',
+            );
+
+            $items = $consignment->items()->lockForUpdate()->get()->keyBy('id');
 
             $rows = [];
             $soldValue = 0.0;
+            $remainingAfterCollection = $items->sum(fn (ConsignmentItem $item) => $item->outstanding());
 
             foreach ($lines as $line) {
                 $item = $items->get((int) ($line['consignment_item_id'] ?? 0));
 
-                if (! $item) {
-                    continue;
-                }
+                abort_unless($item, 422, 'A collection line does not belong to this consignment.');
 
                 $sold = max(0, (int) ($line['sold'] ?? 0));
                 $returned = max(0, (int) ($line['returned'] ?? 0));
@@ -127,6 +161,7 @@ class ConsignmentService
                 $lineSold = round((float) $item->unit_price * $sold, 2);
                 $lineLoss = round((float) $item->cost_price * ($expired + $damaged + $missing), 2);
                 $soldValue += $lineSold;
+                $remainingAfterCollection -= $accounted;
 
                 $rows[] = [
                     'consignment_item_id' => $item->id,
@@ -149,6 +184,11 @@ class ConsignmentService
             }
 
             abort_if($rows === [], 422, 'Record at least one unit as sold, returned or written off.');
+            abort_if(
+                (bool) ($attributes['is_final'] ?? false) && $remainingAfterCollection > 0,
+                422,
+                "This batch still has {$remainingAfterCollection} unaccounted units. Record them as returned, expired, damaged, or missing/other before closing.",
+            );
 
             $collected = isset($attributes['amount_collected']) && $attributes['amount_collected'] !== ''
                 ? round((float) $attributes['amount_collected'], 2)

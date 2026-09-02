@@ -25,7 +25,7 @@ const BUCKETS = [
     ['returned', 'Returned', 'text-chocolate-600'],
     ['expired', 'Expired', 'text-caramel-dark'],
     ['damaged', 'Damaged', 'text-caramel-dark'],
-    ['missing', 'Missing', 'text-cherry'],
+    ['missing', 'Missing / other', 'text-cherry'],
 ];
 
 export default function Show({ consignment, seller }) {
@@ -85,8 +85,32 @@ export default function Show({ consignment, seller }) {
             };
         });
 
-        return { lines, soldValue, over, anything: lines.some((l) => l.accounted > 0) };
+        const remaining = lines.reduce(
+            (total, line, index) => total + Math.max(0, consignment.items[index].outstanding - line.accounted),
+            0,
+        );
+
+        return { lines, soldValue, over, remaining, anything: lines.some((l) => l.accounted > 0) };
     }, [rows, consignment.items]);
+
+    const returnEverythingRemaining = () =>
+        setRows((prev) =>
+            Object.fromEntries(
+                consignment.items.map((item) => {
+                    const row = prev[item.id] ?? {};
+                    const otherwiseAccounted =
+                        n(row.sold) + n(row.expired) + n(row.damaged) + n(row.missing);
+
+                    return [
+                        item.id,
+                        {
+                            ...row,
+                            returned: Math.max(0, item.outstanding - otherwiseAccounted),
+                        },
+                    ];
+                }),
+            ),
+        );
 
     const submit = (e) => {
         e.preventDefault();
@@ -222,8 +246,18 @@ export default function Show({ consignment, seller }) {
                             </h2>
                             <p className="text-sm text-chocolate-400">
                                 Count what sold and what came back. Good returns go straight back on the shelf;
-                                expired, damaged and missing units are written off.
+                                expired, damaged, missing, and other unusable units are written off. Add the exact
+                                situation in the notes.
                             </p>
+
+                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cream-300 bg-cream-50 px-4 py-3">
+                                <p className="text-xs text-chocolate-400">
+                                    For end-of-day pickup, enter sold or lost units first, then return everything else.
+                                </p>
+                                <Button type="button" variant="ghost" onClick={returnEverythingRemaining}>
+                                    Return all remaining stock
+                                </Button>
+                            </div>
 
                             <form onSubmit={submit} className="mt-5">
                                 <div className="overflow-x-auto">
@@ -347,6 +381,14 @@ export default function Show({ consignment, seller }) {
                                     </Field>
                                 </div>
 
+                                {form.data.is_final && computed.remaining > 0 && (
+                                    <p className="mt-3 flex items-start gap-2 rounded-xl bg-caramel-soft/30 px-4 py-3 text-sm text-caramel-dark">
+                                        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                                        {computed.remaining} units are still unaccounted for. Record them before
+                                        closing this batch.
+                                    </p>
+                                )}
+
                                 <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-cream-100 px-4 py-3">
                                     <label className="flex cursor-pointer items-center gap-2.5 text-sm text-chocolate-600">
                                         <input
@@ -368,7 +410,10 @@ export default function Show({ consignment, seller }) {
                                         <Button
                                             type="submit"
                                             disabled={
-                                                form.processing || !computed.anything || computed.over.length > 0
+                                                form.processing ||
+                                                !computed.anything ||
+                                                computed.over.length > 0 ||
+                                                (form.data.is_final && computed.remaining > 0)
                                             }
                                         >
                                             <PackageCheck className="h-4 w-4" /> Record collection
@@ -443,7 +488,7 @@ export default function Show({ consignment, seller }) {
                                                         {l.expired + l.damaged + l.missing > 0 && (
                                                             <span className="text-cherry-dark">
                                                                 {' '}
-                                                                · {l.expired + l.damaged + l.missing} lost
+                                                                · {l.expired + l.damaged + l.missing} lost/other
                                                             </span>
                                                         )}
                                                     </span>
@@ -485,7 +530,7 @@ export default function Show({ consignment, seller }) {
                                 <dd className="tabular-nums">{consignment.totals.quantity_returned} pcs</dd>
                             </div>
                             <div className="flex justify-between text-cherry-dark">
-                                <dt>Expired / damaged / missing</dt>
+                                <dt>Expired / damaged / missing / other</dt>
                                 <dd className="tabular-nums">
                                     {consignment.totals.quantity_expired +
                                         consignment.totals.quantity_damaged +

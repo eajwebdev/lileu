@@ -38,6 +38,9 @@ credentials differ, edit `DB_USERNAME` / `DB_PASSWORD`.
 The seeded data deliberately includes all three money states: an order with a 50% downpayment paid
 and a balance outstanding, an order settled in two separate payments, and a brand-new unpaid order.
 
+The default business address shown across the site and receipts is **Dahile, Mabinay, Negros
+Oriental**. It can still be changed later in Admin â†’ Brand & receipts.
+
 ---
 
 ## The brand system
@@ -116,6 +119,21 @@ webhook cannot double-count either.
 | Cancelled / voided / refunded           | `CANCELLED` / `VOID` / `REFUNDED` | Muted red |
 
 `tests/Feature/ResellerPaymentFlowTest.php` locks all of this down. Run `php artisan test`.
+
+### Student and vendor consignments
+
+Admin â†’ Consignments handles short selling runs where products are handed to a student or vendor
+without payment up front. A batch may be collected once or several times (for example, each evening
+or the next morning). At every collection, each unit can be recorded as:
+
+- sold â€” the consignment price becomes payable;
+- returned in good condition â€” stock goes back onto the shelf immediately;
+- expired, damaged, or missing/other â€” stock is written off at cost, with notes for the scenario; or
+- still out â€” the batch stays open for the next collection.
+
+The final collection cannot close while units are unaccounted for. The settlement screen can mark
+all remaining units as returned in one click, while stock checks prevent issuing more than is
+actually available.
 
 ---
 
