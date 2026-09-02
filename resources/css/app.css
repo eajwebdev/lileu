@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --lileu-chocolate: #3b2a22;
+        --lileu-chocolate-dark: #2b1b16;
+        --lileu-blush: #efafb8;
+        --lileu-blush-light: #f7ced3;
+        --lileu-cream: #f5e8d9;
+        --lileu-cream-light: #fbf5ec;
+        --lileu-vanilla: #fffdfc;
+        --lileu-cherry: #c71827;
+        --lileu-caramel: #d7973e;
+        --lileu-success: #2f7d4a;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-cream-100 text-chocolate-700 antialiased;
+    }
+
+    h1, h2, h3 {
+        @apply text-chocolate-700;
+    }
+
+    ::selection {
+        @apply bg-blush-200 text-chocolate-800;
+    }
+
+    /* Warm scrollbars so even the chrome feels like the brand. */
+    * {
+        scrollbar-color: #cdbaae #fbf5ec;
+        scrollbar-width: thin;
+    }
+    *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    *::-webkit-scrollbar-track {
+        @apply bg-cream-100;
+    }
+    *::-webkit-scrollbar-thumb {
+        @apply rounded-full bg-chocolate-200;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+        @apply bg-chocolate-300;
+    }
+}
+
+@layer components {
+    .card {
+        @apply rounded-2xl border border-cream-300/70 bg-vanilla shadow-soft;
+    }
+
+    .card-pad {
+        @apply p-5 sm:p-6;
+    }
+
+    .label {
+        @apply mb-1.5 block text-sm font-medium text-chocolate-600;
+    }
+
+    .input {
+        @apply w-full rounded-xl border-cream-300 bg-vanilla text-chocolate-700 placeholder:text-chocolate-300
+               focus:border-blush-400 focus:ring-2 focus:ring-blush-200 disabled:bg-cream-100;
+    }
+
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+               transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-300 focus-visible:ring-offset-2
+               focus-visible:ring-offset-cream-100 disabled:cursor-not-allowed disabled:opacity-60;
+    }
+
+    .btn-primary {
+        @apply btn bg-chocolate-700 text-cream-100 shadow-soft hover:bg-chocolate-800 active:scale-[.99];
+    }
+
+    .btn-secondary {
+        @apply btn bg-blush-200 text-chocolate-800 hover:bg-blush-300 active:scale-[.99];
+    }
+
+    .btn-ghost {
+        @apply btn border border-cream-300 bg-vanilla text-chocolate-600 hover:bg-cream-100;
+    }
+
+    .btn-success {
+        @apply btn bg-success text-white hover:bg-success-soft;
+    }
+
+    .btn-danger {
+        @apply btn bg-cherry text-white hover:bg-cherry-dark;
+    }
+
+    .badge {
+        @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+    }
+
+    .section-title {
+        @apply font-display text-2xl font-semibold tracking-tight text-chocolate-700 sm:text-3xl;
+    }
+
+    .table-lileu {
+        @apply w-full text-left text-sm;
+    }
+    .table-lileu thead th {
+        @apply border-b border-cream-300 pb-3 text-xs font-semibold uppercase tracking-wider text-chocolate-400;
+    }
+    .table-lileu tbody td {
+        @apply border-b border-cream-200/80 py-3 align-middle text-chocolate-600;
+    }
+    .table-lileu tbody tr:last-child td {
+        @apply border-b-0;
+    }
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
