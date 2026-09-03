@@ -1,7 +1,7 @@
-import { router, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import { Banknote, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Button, Card, Field, Input, Money, Select } from '@/Components/Lileu/ui';
+import { Button, ButtonLink, Card, Field, Input, Money, Select } from '@/Components/Lileu/ui';
 
 const EXPENSE_CATEGORIES = ['operations', 'utilities', 'packaging', 'salaries', 'marketing', 'transport', 'other'];
 
@@ -13,18 +13,10 @@ export default function Index({ month, expenses, purchases, totals }) {
         amount: '',
     });
 
-    const purchaseForm = useForm({
-        purchased_on: new Date().toISOString().slice(0, 10),
-        supplier: '',
-        reference: '',
-        description: '',
-        amount: '',
-    });
-
     return (
         <AdminLayout
-            title="Expenses & purchases"
-            subtitle="What the shop spends, so net profit stays honest."
+            title="Expenses"
+            subtitle="Overhead alongside the month's ingredient buying, so net profit stays honest."
             action={
                 <Input
                     type="month"
@@ -161,73 +153,37 @@ export default function Index({ month, expenses, purchases, totals }) {
                     </Card>
                 </div>
 
-                {/* Purchases */}
+                {/* Purchases — written by the itemised ingredient flow */}
                 <div className="space-y-4">
                     <Card className="card-pad">
-                        <div className="flex items-center gap-3">
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-caramel-soft/30 text-caramel-dark">
-                                <ShoppingCart className="h-5 w-5" />
-                            </span>
-                            <div>
-                                <p className="text-sm text-chocolate-400">Purchases this month</p>
-                                <p className="font-display text-2xl font-semibold text-chocolate-700">
-                                    <Money value={totals.purchases} />
-                                </p>
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-caramel-soft/30 text-caramel-dark">
+                                    <ShoppingCart className="h-5 w-5" />
+                                </span>
+                                <div>
+                                    <p className="text-sm text-chocolate-400">Ingredient purchases this month</p>
+                                    <p className="font-display text-2xl font-semibold text-chocolate-700">
+                                        <Money value={totals.purchases} />
+                                    </p>
+                                </div>
                             </div>
+                            <ButtonLink href={route('admin.purchases.create')} variant="secondary">
+                                <Plus className="h-4 w-4" /> Record purchase
+                            </ButtonLink>
                         </div>
 
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                purchaseForm.post(route('admin.purchases.store'), {
-                                    preserveScroll: true,
-                                    onSuccess: () => purchaseForm.reset('description', 'amount', 'reference'),
-                                });
-                            }}
-                            className="mt-5 grid gap-3 border-t border-cream-200 pt-5 sm:grid-cols-2"
-                        >
-                            <Field label="Date" error={purchaseForm.errors.purchased_on}>
-                                <Input
-                                    type="date"
-                                    value={purchaseForm.data.purchased_on}
-                                    onChange={(e) => purchaseForm.setData('purchased_on', e.target.value)}
-                                />
-                            </Field>
-                            <Field label="Supplier" error={purchaseForm.errors.supplier}>
-                                <Input
-                                    value={purchaseForm.data.supplier}
-                                    onChange={(e) => purchaseForm.setData('supplier', e.target.value)}
-                                    placeholder="Negros Dairy Supply"
-                                />
-                            </Field>
-                            <Field label="Description" error={purchaseForm.errors.description} className="sm:col-span-2">
-                                <Input
-                                    value={purchaseForm.data.description}
-                                    onChange={(e) => purchaseForm.setData('description', e.target.value)}
-                                    placeholder="Cream and condensed milk restock"
-                                />
-                            </Field>
-                            <Field label="Reference" error={purchaseForm.errors.reference}>
-                                <Input
-                                    value={purchaseForm.data.reference}
-                                    onChange={(e) => purchaseForm.setData('reference', e.target.value)}
-                                    placeholder="PO number"
-                                />
-                            </Field>
-                            <Field label="Amount" error={purchaseForm.errors.amount}>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={purchaseForm.data.amount}
-                                    onChange={(e) => purchaseForm.setData('amount', e.target.value)}
-                                />
-                            </Field>
-                            <div className="sm:col-span-2">
-                                <Button type="submit" disabled={purchaseForm.processing} className="w-full">
-                                    <Plus className="h-4 w-4" /> Record purchase
-                                </Button>
-                            </div>
-                        </form>
+                        <p className="mt-4 border-t border-cream-200 pt-4 text-sm text-chocolate-400">
+                            Purchases are recorded ingredient by ingredient, so this total is the sum of what was
+                            actually bought. Manage the reusable list under{' '}
+                            <Link
+                                href={route('admin.ingredients.index')}
+                                className="font-medium text-chocolate-600 underline decoration-blush-300 underline-offset-2 hover:text-chocolate-700"
+                            >
+                                Ingredients
+                            </Link>
+                            .
+                        </p>
                     </Card>
 
                     <Card className="card-pad">
@@ -243,7 +199,6 @@ export default function Index({ month, expenses, purchases, totals }) {
                                             <th>Date</th>
                                             <th>Description</th>
                                             <th className="text-right">Amount</th>
-                                            <th />
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -255,7 +210,11 @@ export default function Index({ month, expenses, purchases, totals }) {
                                                         {purchase.description}
                                                     </p>
                                                     <p className="text-[11px] text-chocolate-300">
-                                                        {[purchase.supplier, purchase.reference]
+                                                        {[
+                                                            purchase.supplier,
+                                                            purchase.reference,
+                                                            `${purchase.item_count} ${purchase.item_count === 1 ? 'item' : 'items'}`,
+                                                        ]
                                                             .filter(Boolean)
                                                             .join(' · ')}
                                                     </p>
@@ -263,26 +222,20 @@ export default function Index({ month, expenses, purchases, totals }) {
                                                 <td className="text-right font-semibold tabular-nums text-chocolate-700">
                                                     <Money value={purchase.amount} />
                                                 </td>
-                                                <td className="text-right">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            router.delete(
-                                                                route('admin.purchases.destroy', purchase.id),
-                                                                { preserveScroll: true },
-                                                            )
-                                                        }
-                                                        className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cherry/10 hover:text-cherry"
-                                                        aria-label="Remove purchase"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
+                        )}
+
+                        {purchases.length > 0 && (
+                            <Link
+                                href={route('admin.purchases.index', { month })}
+                                className="mt-4 block text-center text-sm font-medium text-chocolate-500 transition hover:text-chocolate-700"
+                            >
+                                Open purchases to see every line →
+                            </Link>
                         )}
                     </Card>
                 </div>

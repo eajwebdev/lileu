@@ -50,6 +50,21 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Deactivating an account has to end at the door. The role middleware
+        // already refuses these users, but without this they would still hold
+        // a session and reach anything gated by nothing more than 'auth'.
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+            $this->session()->invalidate();
+            $this->session()->regenerateToken();
+
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'This account has been deactivated.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

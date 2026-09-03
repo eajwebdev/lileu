@@ -10,6 +10,11 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Overhead expenses, plus a read-only view of the month's ingredient buying.
+ * Purchases are written by the itemised flow in {@see PurchaseController}, so
+ * their total here is always the sum of real ingredient lines.
+ */
 class LedgerController extends Controller
 {
     public function index(Request $request): Response
@@ -33,7 +38,7 @@ class LedgerController extends Controller
                     'amount' => (float) $e->amount,
                     'recorded_by' => $e->recorder?->name,
                 ]),
-            'purchases' => Purchase::with('recorder:id,name')
+            'purchases' => Purchase::with('items:id,purchase_id,name,unit,quantity,unit_price,line_total')
                 ->whereBetween('purchased_on', [$from, $to])
                 ->orderByDesc('purchased_on')
                 ->get()
@@ -44,7 +49,7 @@ class LedgerController extends Controller
                     'reference' => $p->reference,
                     'description' => $p->description,
                     'amount' => (float) $p->amount,
-                    'recorded_by' => $p->recorder?->name,
+                    'item_count' => $p->items->count(),
                 ]),
             'totals' => [
                 'expenses' => round((float) Expense::whereBetween('incurred_on', [$from, $to])->sum('amount'), 2),
@@ -72,27 +77,5 @@ class LedgerController extends Controller
         $expense->delete();
 
         return back()->with('success', 'Expense removed.');
-    }
-
-    public function storePurchase(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'purchased_on' => ['required', 'date'],
-            'supplier' => ['nullable', 'string', 'max:255'],
-            'reference' => ['nullable', 'string', 'max:60'],
-            'description' => ['required', 'string', 'max:255'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
-        ]);
-
-        Purchase::create($data + ['recorded_by' => $request->user()->id]);
-
-        return back()->with('success', 'Purchase recorded.');
-    }
-
-    public function destroyPurchase(Purchase $purchase): RedirectResponse
-    {
-        $purchase->delete();
-
-        return back()->with('success', 'Purchase removed.');
     }
 }

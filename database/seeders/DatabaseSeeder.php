@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Expense;
+use App\Models\Ingredient;
 use App\Models\Message;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -13,6 +14,7 @@ use App\Services\NumberGenerator;
 use App\Services\OrderService;
 use App\Services\ConsignmentService;
 use App\Services\PaymentService;
+use App\Services\PurchaseService;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +32,7 @@ class DatabaseSeeder extends Seeder
         $this->seedOrders($resellers, $products, $admin);
         $this->seedConsignments($products, $admin);
         $this->seedLedger($admin);
+        $this->seedPurchases($this->seedIngredients(), $admin);
     }
 
     private function seedSettings(): void
@@ -341,7 +344,7 @@ class DatabaseSeeder extends Seeder
         foreach ([
             ['operations', 'Store rent share', 4500],
             ['utilities', 'Electricity and water', 2380],
-            ['packaging', 'Cups, lids and stickers', 1750],
+            ['salaries', 'Weekend helper', 1600],
         ] as [$category, $description, $amount]) {
             Expense::create([
                 'incurred_on' => now()->subDays(rand(1, 20)),
@@ -351,19 +354,124 @@ class DatabaseSeeder extends Seeder
                 'recorded_by' => $admin->id,
             ]);
         }
+    }
 
-        foreach ([
-            ['Negros Dairy Supply', 'Cream and condensed milk restock', 6200],
-            ['Graham House', 'Graham crackers 20kg', 3400],
-        ] as [$supplier, $description, $amount]) {
-            Purchase::create([
-                'purchased_on' => now()->subDays(rand(1, 20)),
-                'supplier' => $supplier,
-                'reference' => 'PO-'.strtoupper(Str::random(6)),
-                'description' => $description,
-                'amount' => $amount,
-                'recorded_by' => $admin->id,
-            ]);
+    /**
+     * The reusable buying list. Add here and it shows up in the purchase
+     * picker; the price is only a starting point, since each purchase can
+     * correct it.
+     */
+    private function seedIngredients(): array
+    {
+        $rows = [
+            ['All-purpose flour', 'kg', 'ingredient', 'Mabinay Grocers', 62],
+            ['White sugar', 'kg', 'ingredient', 'Mabinay Grocers', 78],
+            ['Brown sugar', 'kg', 'ingredient', 'Mabinay Grocers', 85],
+            ['Butter', 'kg', 'ingredient', 'Negros Dairy Supply', 420],
+            ['All-purpose cream', 'pack', 'ingredient', 'Negros Dairy Supply', 68],
+            ['Condensed milk', 'can', 'ingredient', 'Negros Dairy Supply', 62],
+            ['Evaporated milk', 'can', 'ingredient', 'Negros Dairy Supply', 42],
+            ['Graham crackers', 'pack', 'ingredient', 'Graham House', 95],
+            ['Eggs', 'tray', 'ingredient', 'Dahile Poultry', 250],
+            ['Cocoa powder', 'kg', 'ingredient', 'Graham House', 380],
+            ['Ube halaya', 'kg', 'ingredient', 'Local market', 320],
+            ['Ripe mango', 'kg', 'ingredient', 'Local market', 120],
+            ['Vanilla extract', 'bottle', 'ingredient', 'Graham House', 145],
+            ['Chocolate chips', 'kg', 'ingredient', 'Graham House', 340],
+            ['Biscoff spread', 'bottle', 'ingredient', 'Graham House', 385],
+            ['Maraschino cherries', 'bottle', 'ingredient', 'Graham House', 165],
+            ['Plastic cups 8oz', 'pack', 'packaging', 'Pack N Go', 110],
+            ['Cup lids', 'pack', 'packaging', 'Pack N Go', 85],
+            ['Sticker labels', 'pack', 'packaging', 'Pack N Go', 140],
+            ['Paper bags', 'pack', 'packaging', 'Pack N Go', 95],
+            ['Dishwashing liquid', 'bottle', 'supplies', 'Mabinay Grocers', 78],
+        ];
+
+        $out = [];
+        foreach ($rows as [$name, $unit, $category, $supplier, $price]) {
+            $out[$name] = Ingredient::updateOrCreate(
+                ['slug' => Str::slug($name)],
+                [
+                    'name' => $name,
+                    'unit' => $unit,
+                    'category' => $category,
+                    'supplier' => $supplier,
+                    'last_price' => $price,
+                    'is_active' => true,
+                ],
+            );
         }
+
+        return $out;
+    }
+
+    /**
+     * A few real market runs, recorded through the service so prices carry
+     * forward and the price-change trail looks the way it will in use.
+     */
+    private function seedPurchases(array $ingredients, User $admin): void
+    {
+        $service = app(PurchaseService::class);
+
+        $runs = [
+            [40, 'Negros Dairy Supply', 'Dairy restock', [
+                ['All-purpose cream', 24, 68],
+                ['Condensed milk', 18, 62],
+                ['Evaporated milk', 12, 42],
+                ['Butter', 3, 420],
+            ]],
+            [8, 'Graham House', 'Dry goods run', [
+                ['Graham crackers', 20, 95],
+                ['Cocoa powder', 2, 380],
+                ['Chocolate chips', 1.5, 355],   // supplier raised the price
+                ['Vanilla extract', 3, 145],
+            ]],
+            [4, 'Pack N Go', 'Packaging restock', [
+                ['Plastic cups 8oz', 10, 108],   // bought a little cheaper
+                ['Cup lids', 10, 85],
+                ['Sticker labels', 4, 140],
+                ['Paper bags', 6, 95],
+            ]],
+            [1, 'Local market', 'Weekend market run', [
+                ['Ripe mango', 8, 135],          // in-season swing
+                ['Ube halaya', 2, 320],
+                ['Eggs', 4, 265],
+            ]],
+        ];
+
+        foreach ($runs as [$daysAgo, $supplier, $description, $lines]) {
+            $items = [];
+
+            foreach ($lines as [$name, $quantity, $unitPrice]) {
+                $items[] = [
+                    'ingredient_id' => $ingredients[$name]->id,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                ];
+            }
+
+            $service->record($items, [
+                'purchased_on' => $this->purchaseDate($daysAgo),
+                'supplier' => $supplier,
+                'reference' => 'OR-'.strtoupper(Str::random(6)),
+                'description' => $description,
+            ], $admin);
+        }
+    }
+
+    /**
+     * Recent runs are pulled forward into the current month so the Purchases
+     * page has something to show on a fresh seed; the oldest is left in the
+     * previous month so the month filter has history to find.
+     */
+    private function purchaseDate(int $daysAgo): string
+    {
+        $date = now()->subDays($daysAgo);
+
+        if ($daysAgo < 30 && $date->lt(now()->startOfMonth())) {
+            $date = now()->startOfMonth();
+        }
+
+        return $date->toDateString();
     }
 }

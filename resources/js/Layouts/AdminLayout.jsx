@@ -3,6 +3,7 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import {
     BookOpen,
+    Carrot,
     ChartNoAxesColumn,
     CreditCard,
     HandCoins,
@@ -13,6 +14,7 @@ import {
     Package,
     Receipt,
     Settings,
+    ShoppingBasket,
     ShoppingCart,
     Users,
     UsersRound,
@@ -82,7 +84,19 @@ const GROUPS = [
                 match: 'pos.index',
             },
             {
-                label: 'Expenses & Purchases',
+                label: 'Ingredients',
+                icon: Carrot,
+                route: 'admin.ingredients.index',
+                match: 'admin.ingredients.*',
+            },
+            {
+                label: 'Purchases',
+                icon: ShoppingBasket,
+                route: 'admin.purchases.index',
+                match: 'admin.purchases.*',
+            },
+            {
+                label: 'Expenses',
                 icon: BookOpen,
                 route: 'admin.ledger.index',
                 match: 'admin.ledger.*',

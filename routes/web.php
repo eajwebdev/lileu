@@ -124,8 +124,16 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/ledger', [Admin\LedgerController::class, 'index'])->name('ledger.index');
     Route::post('/expenses', [Admin\LedgerController::class, 'storeExpense'])->name('expenses.store');
     Route::delete('/expenses/{expense}', [Admin\LedgerController::class, 'destroyExpense'])->name('expenses.destroy');
-    Route::post('/purchases', [Admin\LedgerController::class, 'storePurchase'])->name('purchases.store');
-    Route::delete('/purchases/{purchase}', [Admin\LedgerController::class, 'destroyPurchase'])->name('purchases.destroy');
+
+    Route::get('/ingredients', [Admin\IngredientController::class, 'index'])->name('ingredients.index');
+    Route::post('/ingredients', [Admin\IngredientController::class, 'store'])->name('ingredients.store');
+    Route::put('/ingredients/{ingredient}', [Admin\IngredientController::class, 'update'])->name('ingredients.update');
+    Route::delete('/ingredients/{ingredient}', [Admin\IngredientController::class, 'destroy'])->name('ingredients.destroy');
+
+    Route::get('/purchases', [Admin\PurchaseController::class, 'index'])->name('purchases.index');
+    Route::get('/purchases/new', [Admin\PurchaseController::class, 'create'])->name('purchases.create');
+    Route::post('/purchases', [Admin\PurchaseController::class, 'store'])->name('purchases.store');
+    Route::delete('/purchases/{purchase}', [Admin\PurchaseController::class, 'destroy'])->name('purchases.destroy');
 
     Route::get('/reports', [Admin\ReportController::class, 'index'])->name('reports.index');
 
