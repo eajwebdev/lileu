@@ -12,6 +12,7 @@ use App\Support\Settings;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Tests\Support\CreatesShopData;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,7 @@ use Tests\TestCase;
  */
 class AdminManagementTest extends TestCase
 {
+    use CreatesShopData;
     use RefreshDatabase;
 
     private User $admin;
@@ -224,7 +226,7 @@ class AdminManagementTest extends TestCase
 
     public function test_the_products_a_seller_may_order_can_be_synced(): void
     {
-        $seller = Reseller::whereNotNull('user_id')->firstOrFail();
+        $seller = $this->approvedSeller();
         $ids = Product::query()->limit(2)->pluck('id')->all();
 
         $this->actingAs($this->admin)
@@ -286,9 +288,7 @@ class AdminManagementTest extends TestCase
 
     public function test_admin_and_seller_can_message_each_other(): void
     {
-        $seller = Reseller::whereNotNull('user_id')
-            ->where('status', Reseller::STATUS_APPROVED)
-            ->firstOrFail();
+        $seller = $this->approvedSeller();
 
         $this->actingAs($this->admin)
             ->post(route('admin.messages.store', $seller), ['body' => 'Your order is ready for pickup.'])

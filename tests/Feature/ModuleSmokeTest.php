@@ -12,6 +12,7 @@ use App\Models\ResellerOrder;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesShopData;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,7 @@ use Tests\TestCase;
  */
 class ModuleSmokeTest extends TestCase
 {
+    use CreatesShopData;
     use RefreshDatabase;
 
     private User $admin;
@@ -31,17 +33,25 @@ class ModuleSmokeTest extends TestCase
 
     private User $reseller;
 
+    private Reseller $seller;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        // Branding, menu and staff come from the seeder; the trading history
+        // these pages display is built here.
         $this->seed(DatabaseSeeder::class);
 
         $this->admin = User::where('role', User::ROLE_ADMIN)->firstOrFail();
         $this->cashier = User::where('role', User::ROLE_CASHIER)->firstOrFail();
-        $this->reseller = User::where('role', User::ROLE_RESELLER)
-            ->whereHas('reseller', fn ($q) => $q->where('status', Reseller::STATUS_APPROVED))
-            ->firstOrFail();
+
+        $this->seller = $this->approvedSeller();
+        $this->reseller = $this->seller->user;
+
+        $order = $this->placeOrder($this->seller);
+        $this->payFor($order, $this->admin);
+        $this->issueConsignment($this->seller);
     }
 
     /** @param  array<string, string>  $pages  route name => expected Inertia component */
@@ -77,7 +87,7 @@ class ModuleSmokeTest extends TestCase
     public function test_every_admin_module_renders(): void
     {
         $order = ResellerOrder::firstOrFail();
-        $seller = Reseller::firstOrFail();
+        $seller = $this->seller;
         $consignment = Consignment::firstOrFail();
 
         $this->assertPagesRender($this->admin, [
@@ -138,9 +148,7 @@ class ModuleSmokeTest extends TestCase
 
     public function test_a_pending_reseller_sees_the_status_page_and_nothing_else(): void
     {
-        $pending = User::where('role', User::ROLE_RESELLER)
-            ->whereHas('reseller', fn ($q) => $q->where('status', Reseller::STATUS_PENDING))
-            ->firstOrFail();
+        $pending = $this->pendingSeller()->user;
 
         $this->actingAs($pending)->get(route('portal.status'))->assertOk();
 

@@ -3,36 +3,25 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
-use App\Models\Expense;
-use App\Models\Ingredient;
-use App\Models\Message;
 use App\Models\Product;
-use App\Models\Purchase;
-use App\Models\Reseller;
 use App\Models\User;
-use App\Services\NumberGenerator;
-use App\Services\OrderService;
-use App\Services\ConsignmentService;
-use App\Services\PaymentService;
-use App\Services\PurchaseService;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
+/**
+ * What the shop starts with: its branding, the menu, and the people who run
+ * it. Selling, buying and spending are all recorded in the app itself, so
+ * nothing here invents history.
+ */
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
         $this->seedSettings();
-        $categories = $this->seedCategories();
-        $products = $this->seedProducts($categories);
-        [$admin, $cashier] = $this->seedStaff();
-        $resellers = $this->seedResellers($products);
-        $this->seedOrders($resellers, $products, $admin);
-        $this->seedConsignments($products, $admin);
-        $this->seedLedger($admin);
-        $this->seedPurchases($this->seedIngredients(), $admin);
+        $this->seedProducts($this->seedCategories());
+        $this->seedStaff();
     }
 
     private function seedSettings(): void
@@ -79,18 +68,10 @@ class DatabaseSeeder extends Seeder
     private function seedProducts(array $categories): array
     {
         $rows = [
-            ['Graham Nest Classic', 'Graham', 'GN-CL', 12, 9, 5.5, 'Buttery graham layers, sweet cream and a cherry crown.', true],
-            ['Graham Nest Mango', 'Graham', 'GN-MG', 14, 10.5, 6.5, 'Ripe mango folded through our signature graham base.', true],
-            ['Graham Nest Ube', 'Graham', 'GN-UB', 14, 10.5, 6.5, 'House-cooked ube halaya over toasted graham crumble.', false],
-            ['Chocolate Chip Cookies', 'Cookies', 'CK-CC', 15, 11, 6.5, 'Soft-baked and loaded with dark chocolate chunks.', true],
-            ['Chocolate Crinkles', 'Cookies', 'CK-CR', 12, 9, 5, 'Fudgy cocoa cookies rolled in powdered sugar.', false],
-            ['Munchkin Glazed', 'Munchkin', 'MK-GL', 10, 7.5, 4.5, 'Bite-sized doughnuts under a thin vanilla glaze.', true],
-            ['Munchkin Choco', 'Munchkin', 'MK-CH', 11, 8, 5, 'Doughnut bites dipped in dark chocolate.', false],
+            ['Graham Nest', 'Graham', 'GN-01', 12, 9, 5.5, 'Buttery graham layers, sweet cream and a cherry crown.', true],
             ['Cloudy Classic', 'Cream Cups', 'CC-CL', 13, 10, 6, 'Airy whipped cream over a soft biscuit floor.', true],
-            ['Cloudy Strawberry', 'Cream Cups', 'CC-ST', 15, 11, 7, 'Strawberry compote swirled into cloud cream.', false],
-            ['Cocoa Cascade', 'Cream Cups', 'CO-CS', 13, 10, 6, 'Dark cocoa pudding with a cascading ganache top.', true],
-            ['Biscoff Dream', 'Seasonal', 'SE-BF', 18, 13.5, 8.5, 'Speculoos crumb, caramel cream and a cookie shard.', true],
-            ['Mango Float Cup', 'Seasonal', 'SE-MF', 16, 12, 7.5, 'Layered mango float in a grab-and-go cup.', false],
+            ['Misty Green', 'Cream Cups', 'CC-MG', 16, 12, 7.5, 'Matcha cream settled over a soft biscuit floor.', true],
+            ['Cocoa Cascade', 'Cream Cups', 'CC-CO', 13, 10, 6, 'Dark cocoa pudding with a cascading ganache top.', true],
         ];
 
         $out = [];
@@ -105,8 +86,8 @@ class DatabaseSeeder extends Seeder
                     'retail_price' => $retail,
                     'reseller_price' => $wholesale,
                     'cost_price' => $cost,
-                    'stock' => 200 - ($i * 12),
-                    'low_stock_threshold' => 40,
+                    'stock' => 100,
+                    'low_stock_threshold' => 20,
                     'min_reseller_qty' => 10,
                     'is_active' => true,
                     'is_featured' => $featured,
@@ -144,334 +125,5 @@ class DatabaseSeeder extends Seeder
         );
 
         return [$admin, $cashier];
-    }
-
-    private function seedResellers(array $products): array
-    {
-        $numbers = app(NumberGenerator::class);
-
-        $rows = [
-            ['Juan Dela Cruz', 'Sweet Corner PH', 'juan@lileu.test', '0917 111 2222', 'Bais City', Reseller::STATUS_APPROVED, 0],
-            ['Maria Santos', 'Maria Pastry Hub', 'maria@lileu.test', '0917 333 4444', 'Dumaguete City', Reseller::STATUS_APPROVED, 5],
-            ['Ana Reyes', null, 'ana@lileu.test', '0917 555 6666', 'Manjuyod', Reseller::STATUS_PENDING, 0],
-        ];
-
-        $out = [];
-        foreach ($rows as [$name, $business, $email, $phone, $city, $status, $discount]) {
-            $user = User::updateOrCreate(
-                ['email' => $email],
-                [
-                    'name' => $name,
-                    'password' => Hash::make('password'),
-                    'role' => User::ROLE_RESELLER,
-                    'phone' => $phone,
-                    'email_verified_at' => now(),
-                ],
-            );
-
-            $reseller = Reseller::updateOrCreate(
-                ['email' => $email],
-                [
-                    'user_id' => $user->id,
-                    'code' => $numbers->resellerCode(),
-                    'name' => $name,
-                    'business_name' => $business,
-                    'phone' => $phone,
-                    'city' => $city,
-                    'address' => "{$city}, Negros Oriental",
-                    'why_reseller' => 'I already sell desserts online and want a reliable supplier.',
-                    'status' => $status,
-                    'discount_percent' => $discount,
-                    'downpayment_percent' => 50,
-                    'applied_at' => now()->subDays(20),
-                    'approved_at' => $status === Reseller::STATUS_APPROVED ? now()->subDays(18) : null,
-                ],
-            );
-
-            if ($status === Reseller::STATUS_APPROVED) {
-                $reseller->products()->syncWithoutDetaching(
-                    collect($products)->mapWithKeys(fn (Product $p) => [
-                        $p->id => ['is_approved' => true, 'custom_price' => null],
-                    ])->all(),
-                );
-            }
-
-            $out[$email] = $reseller;
-        }
-
-        return $out;
-    }
-
-    private function seedOrders(array $resellers, array $products, User $admin): void
-    {
-        $orderService = app(OrderService::class);
-        $paymentService = app(PaymentService::class);
-
-        $juan = $resellers['juan@lileu.test'];
-        $maria = $resellers['maria@lileu.test'];
-
-        // Order 1 — the master-prompt example: 50% downpayment settled, balance open.
-        $order = $orderService->placeResellerOrder($juan, [
-            ['product_id' => $products['GN-CL']->id, 'quantity' => 50],
-            ['product_id' => $products['CC-CL']->id, 'quantity' => 20],
-            ['product_id' => $products['CO-CS']->id, 'quantity' => 20],
-        ], [
-            'fulfillment_type' => 'pickup',
-            'date_needed' => now()->addDays(3)->toDateString(),
-            'time_needed' => '10:00',
-            'notes' => 'Please pack per flavour in separate trays.',
-        ]);
-
-        $paymentService->markPaid(
-            $paymentService->openPayment($order),
-            ['reference' => 'QRPH-DEMO-001'],
-        );
-
-        Message::create([
-            'reseller_id' => $juan->id,
-            'reseller_order_id' => $order->id,
-            'user_id' => $juan->user_id,
-            'author_role' => 'reseller',
-            'body' => 'Hi! Downpayment sent. Can I pick this up at 10 AM sharp?',
-        ]);
-
-        Message::create([
-            'reseller_id' => $juan->id,
-            'reseller_order_id' => $order->id,
-            'user_id' => $admin->id,
-            'author_role' => 'admin',
-            'body' => 'Received, thank you! 10 AM works perfectly. See you then. 💗',
-        ]);
-
-        // Order 2 — fully settled in two payments, so the summary sheet has data.
-        $paid = $orderService->placeResellerOrder($maria, [
-            ['product_id' => $products['SE-BF']->id, 'quantity' => 30],
-            ['product_id' => $products['GN-MG']->id, 'quantity' => 30],
-        ], [
-            'fulfillment_type' => 'delivery',
-            'delivery_address' => 'Purok 3, Barangay Poblacion, Bais City',
-            'delivery_fee' => 150,
-            'date_needed' => now()->addDays(5)->toDateString(),
-            'time_needed' => '14:30',
-        ]);
-
-        $paymentService->markPaid($paymentService->openPayment($paid), ['reference' => 'QRPH-DEMO-002']);
-        $paymentService->markPaid($paymentService->openPayment($paid->refresh()), ['reference' => 'QRPH-DEMO-003']);
-        $paid->refresh()->update([
-            'status' => \App\Models\ResellerOrder::STATUS_READY,
-        ]);
-
-        // Order 3 — brand new, nothing paid yet.
-        $orderService->placeResellerOrder($maria, [
-            ['product_id' => $products['CC-ST']->id, 'quantity' => 24],
-        ], [
-            'fulfillment_type' => 'pickup',
-            'date_needed' => now()->addDays(7)->toDateString(),
-        ]);
-    }
-
-    /**
-     * Consignment sellers are added by hand, not through the public form, and
-     * usually have no email or login at all.
-     */
-    private function seedConsignments(array $products, User $admin): void
-    {
-        $numbers = app(NumberGenerator::class);
-        $service = app(ConsignmentService::class);
-
-        $rows = [
-            ['Kyle Amores', 'Mabinay National High School', '0917 777 8888', 'Mabinay'],
-            ['Aling Nena', 'Public Market Stall 12', '0917 999 0000', 'Mabinay'],
-        ];
-
-        $sellers = [];
-        foreach ($rows as [$name, $business, $phone, $city]) {
-            $sellers[] = Reseller::updateOrCreate(
-                ['name' => $name],
-                [
-                    'code' => $numbers->resellerCode(),
-                    'business_name' => $business,
-                    'email' => null,
-                    'phone' => $phone,
-                    'city' => $city,
-                    'address' => $city.', Negros Oriental',
-                    'status' => Reseller::STATUS_APPROVED,
-                    'engagement' => Reseller::ENGAGEMENT_CONSIGNMENT,
-                    'downpayment_percent' => 0,
-                    'applied_at' => now()->subDays(10),
-                    'approved_at' => now()->subDays(10),
-                    'approved_by' => $admin->id,
-                ],
-            );
-        }
-
-        // Batch 1 — yesterday's tray, already collected: most sold, a few came
-        // back good, one melted in the heat.
-        $batch = $service->issue($sellers[0], [
-            ['product_id' => $products['GN-CL']->id, 'quantity' => 30],
-            ['product_id' => $products['CC-CL']->id, 'quantity' => 20],
-        ], [
-            'issued_on' => now()->subDay()->toDateString(),
-            'due_on' => now()->toDateString(),
-            'notes' => 'Selling at the school canteen until 4 PM.',
-        ], $admin);
-
-        $items = $batch->items()->get()->keyBy('sku');
-
-        $service->settle($batch, [
-            ['consignment_item_id' => $items['GN-CL']->id, 'sold' => 26, 'returned' => 3, 'damaged' => 1],
-            ['consignment_item_id' => $items['CC-CL']->id, 'sold' => 15, 'returned' => 4, 'expired' => 1],
-        ], [
-            'settled_on' => now()->toDateString(),
-            'method' => 'cash',
-            'is_final' => true,
-            'notes' => 'One cup melted on the way home.',
-        ], $admin);
-
-        // Batch 2 — went out this morning, nothing collected yet.
-        $service->issue($sellers[1], [
-            ['product_id' => $products['CO-CS']->id, 'quantity' => 24],
-            ['product_id' => $products['SE-BF']->id, 'quantity' => 12],
-        ], [
-            'issued_on' => now()->toDateString(),
-            'due_on' => now()->addDay()->toDateString(),
-            'notes' => 'Market day — collect tomorrow morning.',
-        ], $admin);
-    }
-
-    private function seedLedger(User $admin): void
-    {
-        foreach ([
-            ['operations', 'Store rent share', 4500],
-            ['utilities', 'Electricity and water', 2380],
-            ['salaries', 'Weekend helper', 1600],
-        ] as [$category, $description, $amount]) {
-            Expense::create([
-                'incurred_on' => now()->subDays(rand(1, 20)),
-                'category' => $category,
-                'description' => $description,
-                'amount' => $amount,
-                'recorded_by' => $admin->id,
-            ]);
-        }
-    }
-
-    /**
-     * The reusable buying list. Add here and it shows up in the purchase
-     * picker; the price is only a starting point, since each purchase can
-     * correct it.
-     */
-    private function seedIngredients(): array
-    {
-        $rows = [
-            ['All-purpose flour', 'kg', 'ingredient', 'Mabinay Grocers', 62],
-            ['White sugar', 'kg', 'ingredient', 'Mabinay Grocers', 78],
-            ['Brown sugar', 'kg', 'ingredient', 'Mabinay Grocers', 85],
-            ['Butter', 'kg', 'ingredient', 'Negros Dairy Supply', 420],
-            ['All-purpose cream', 'pack', 'ingredient', 'Negros Dairy Supply', 68],
-            ['Condensed milk', 'can', 'ingredient', 'Negros Dairy Supply', 62],
-            ['Evaporated milk', 'can', 'ingredient', 'Negros Dairy Supply', 42],
-            ['Graham crackers', 'pack', 'ingredient', 'Graham House', 95],
-            ['Eggs', 'tray', 'ingredient', 'Dahile Poultry', 250],
-            ['Cocoa powder', 'kg', 'ingredient', 'Graham House', 380],
-            ['Ube halaya', 'kg', 'ingredient', 'Local market', 320],
-            ['Ripe mango', 'kg', 'ingredient', 'Local market', 120],
-            ['Vanilla extract', 'bottle', 'ingredient', 'Graham House', 145],
-            ['Chocolate chips', 'kg', 'ingredient', 'Graham House', 340],
-            ['Biscoff spread', 'bottle', 'ingredient', 'Graham House', 385],
-            ['Maraschino cherries', 'bottle', 'ingredient', 'Graham House', 165],
-            ['Plastic cups 8oz', 'pack', 'packaging', 'Pack N Go', 110],
-            ['Cup lids', 'pack', 'packaging', 'Pack N Go', 85],
-            ['Sticker labels', 'pack', 'packaging', 'Pack N Go', 140],
-            ['Paper bags', 'pack', 'packaging', 'Pack N Go', 95],
-            ['Dishwashing liquid', 'bottle', 'supplies', 'Mabinay Grocers', 78],
-        ];
-
-        $out = [];
-        foreach ($rows as [$name, $unit, $category, $supplier, $price]) {
-            $out[$name] = Ingredient::updateOrCreate(
-                ['slug' => Str::slug($name)],
-                [
-                    'name' => $name,
-                    'unit' => $unit,
-                    'category' => $category,
-                    'supplier' => $supplier,
-                    'last_price' => $price,
-                    'is_active' => true,
-                ],
-            );
-        }
-
-        return $out;
-    }
-
-    /**
-     * A few real market runs, recorded through the service so prices carry
-     * forward and the price-change trail looks the way it will in use.
-     */
-    private function seedPurchases(array $ingredients, User $admin): void
-    {
-        $service = app(PurchaseService::class);
-
-        $runs = [
-            [40, 'Negros Dairy Supply', 'Dairy restock', [
-                ['All-purpose cream', 24, 68],
-                ['Condensed milk', 18, 62],
-                ['Evaporated milk', 12, 42],
-                ['Butter', 3, 420],
-            ]],
-            [8, 'Graham House', 'Dry goods run', [
-                ['Graham crackers', 20, 95],
-                ['Cocoa powder', 2, 380],
-                ['Chocolate chips', 1.5, 355],   // supplier raised the price
-                ['Vanilla extract', 3, 145],
-            ]],
-            [4, 'Pack N Go', 'Packaging restock', [
-                ['Plastic cups 8oz', 10, 108],   // bought a little cheaper
-                ['Cup lids', 10, 85],
-                ['Sticker labels', 4, 140],
-                ['Paper bags', 6, 95],
-            ]],
-            [1, 'Local market', 'Weekend market run', [
-                ['Ripe mango', 8, 135],          // in-season swing
-                ['Ube halaya', 2, 320],
-                ['Eggs', 4, 265],
-            ]],
-        ];
-
-        foreach ($runs as [$daysAgo, $supplier, $description, $lines]) {
-            $items = [];
-
-            foreach ($lines as [$name, $quantity, $unitPrice]) {
-                $items[] = [
-                    'ingredient_id' => $ingredients[$name]->id,
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                ];
-            }
-
-            $service->record($items, [
-                'purchased_on' => $this->purchaseDate($daysAgo),
-                'supplier' => $supplier,
-                'reference' => 'OR-'.strtoupper(Str::random(6)),
-                'description' => $description,
-            ], $admin);
-        }
-    }
-
-    /**
-     * Recent runs are pulled forward into the current month so the Purchases
-     * page has something to show on a fresh seed; the oldest is left in the
-     * previous month so the month filter has history to find.
-     */
-    private function purchaseDate(int $daysAgo): string
-    {
-        $date = now()->subDays($daysAgo);
-
-        if ($daysAgo < 30 && $date->lt(now()->startOfMonth())) {
-            $date = now()->startOfMonth();
-        }
-
-        return $date->toDateString();
     }
 }
