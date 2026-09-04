@@ -538,4 +538,147 @@ class ProductVariantFlowTest extends TestCase
                 ->where('catalog.0.reseller_price', fn ($v) => (float) $v === 10.0)
                 ->where('catalog.0.retail_price', fn ($v) => (float) $v === 13.0));
     }
+
+    public function test_consignment_collections_count_as_sales_on_the_dashboard(): void
+    {
+        $seller = $this->approvedSeller();
+        $consignments = app(ConsignmentService::class);
+
+        $consignment = $consignments->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->classic->id, 'quantity' => 10]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $item = $consignment->items()->sole();
+
+        // The seller sold 6 at the wholesale rate and hands over the cash.
+        $consignments->settle(
+            $consignment,
+            [['consignment_item_id' => $item->id, 'sold' => 6, 'returned' => 4]],
+            ['is_final' => true, 'settled_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $collected = 6 * 10.0;
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.consignment_collected', fn ($v) => (float) $v === $collected)
+                ->where('kpis.sales', fn ($v) => (float) $v === $collected)
+                // No counter or reseller money moved, so sales is this alone.
+                ->where('kpis.pos_sales', fn ($v) => (float) $v === 0.0)
+                ->where('kpis.reseller_collected', fn ($v) => (float) $v === 0.0));
+    }
+
+    public function test_the_dashboard_adds_every_channel_together(): void
+    {
+        $seller = $this->approvedSeller();
+        $consignments = app(ConsignmentService::class);
+
+        // 1. A counter sale.
+        $this->actingAs($this->cashier)->post(route('pos.sales.store'), [
+            'items' => [
+                ['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 2],
+            ],
+            'method' => 'cash',
+            'amount_tendered' => 50,
+        ])->assertSessionHasNoErrors();
+
+        // 2. A reseller order, paid in full.
+        $order = $this->placeOrder($seller, null, 10);
+        // Defaults to the downpayment, so the collected figure is what was
+        // actually paid rather than the order total.
+        $payment = $this->payFor($order, $this->admin);
+
+        // 3. A consignment collection.
+        $consignment = $consignments->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->classic->id, 'quantity' => 5]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+        $consignments->settle(
+            $consignment,
+            [['consignment_item_id' => $consignment->items()->sole()->id, 'sold' => 5]],
+            ['is_final' => true, 'settled_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $pos = 2 * 16.0;
+        $reseller = (float) $payment->amount;
+        $consigned = 5 * 10.0;
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.pos_sales', fn ($v) => (float) $v === $pos)
+                ->where('kpis.reseller_collected', fn ($v) => (float) $v === $reseller)
+                ->where('kpis.consignment_collected', fn ($v) => (float) $v === $consigned)
+                ->where('kpis.sales', fn ($v) => (float) $v === round($pos + $reseller + $consigned, 2)));
+    }
+
+    public function test_reports_count_consignment_collections_in_gross_and_net(): void
+    {
+        $seller = $this->approvedSeller();
+        $consignments = app(ConsignmentService::class);
+
+        $consignment = $consignments->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->classic->id, 'quantity' => 8]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $consignments->settle(
+            $consignment,
+            [['consignment_item_id' => $consignment->items()->sole()->id, 'sold' => 8]],
+            ['is_final' => true, 'settled_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $collected = 8 * 10.0;
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.reports.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.consignment_collected', fn ($v) => (float) $v === $collected)
+                ->where('summary.gross_sales', fn ($v) => (float) $v === $collected)
+                // Nothing was bought or spent, so net profit is the collection.
+                ->where('summary.net_profit', fn ($v) => (float) $v === $collected));
+    }
+
+    public function test_the_sales_trend_carries_a_consignment_series(): void
+    {
+        $seller = $this->approvedSeller();
+        $consignments = app(ConsignmentService::class);
+
+        $consignment = $consignments->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->classic->id, 'quantity' => 3]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $consignments->settle(
+            $consignment,
+            [['consignment_item_id' => $consignment->items()->sole()->id, 'sold' => 3]],
+            ['is_final' => true, 'settled_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(function ($page) {
+                $trend = collect($page->toArray()['props']['salesTrend']);
+
+                $this->assertTrue(
+                    $trend->every(fn ($d) => array_key_exists('consignment', $d)),
+                    'Every day in the trend needs a consignment figure.',
+                );
+                $this->assertSame(30.0, (float) $trend->sum('consignment'));
+            });
+    }
 }

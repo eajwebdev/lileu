@@ -67,7 +67,7 @@ export default function Index({ range, summary, byPaymentMethod, topResellers, p
                 <SummaryTile
                     label="Gross sales"
                     value={summary.gross_sales}
-                    hint={`POS ${peso(summary.pos_sales)} · Reseller ${peso(summary.reseller_collected)}`}
+                    hint={`POS ${peso(summary.pos_sales)} · Reseller ${peso(summary.reseller_collected)} · Consignment ${peso(summary.consignment_collected)}`}
                 />
                 <SummaryTile label="Purchases" value={summary.purchases} tone="caramel" />
                 <SummaryTile label="Expenses" value={summary.expenses} tone="blush" />

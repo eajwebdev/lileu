@@ -143,7 +143,7 @@ export default function Dashboard({ range, kpis, counters, salesTrend, topProduc
                     label="Sales"
                     value={kpis.sales}
                     tone={KPI_TONES.sales}
-                    hint={`POS ${peso(kpis.pos_sales)} · Reseller ${peso(kpis.reseller_collected)}`}
+                    hint={`POS ${peso(kpis.pos_sales)} · Reseller ${peso(kpis.reseller_collected)} · Consignment ${peso(kpis.consignment_collected)}`}
                 />
                 <Kpi icon={ShoppingCart} label="Purchases" value={kpis.purchases} tone={KPI_TONES.purchases} />
                 <Kpi icon={Banknote} label="Expenses" value={kpis.expenses} tone={KPI_TONES.expenses} />
@@ -190,7 +190,9 @@ export default function Dashboard({ range, kpis, counters, salesTrend, topProduc
             <div className="mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
                 <Card className="card-pad">
                     <h2 className="font-display text-lg font-semibold text-chocolate-700">Sales trend</h2>
-                    <p className="text-sm text-chocolate-400">Counter sales against reseller collections.</p>
+                    <p className="text-sm text-chocolate-400">
+                        Counter sales, reseller payments and consignment collections.
+                    </p>
 
                     <div className="mt-5 h-64">
                         <ResponsiveContainer width="100%" height="100%">
@@ -203,6 +205,10 @@ export default function Dashboard({ range, kpis, counters, salesTrend, topProduc
                                     <linearGradient id="resellerFill" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#EFAFB8" stopOpacity={0.5} />
                                         <stop offset="100%" stopColor="#EFAFB8" stopOpacity={0.04} />
+                                    </linearGradient>
+                                    <linearGradient id="consignmentFill" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#C98B4B" stopOpacity={0.45} />
+                                        <stop offset="100%" stopColor="#C98B4B" stopOpacity={0.03} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid stroke="#EBD8C3" strokeDasharray="3 3" vertical={false} />
@@ -227,6 +233,14 @@ export default function Dashboard({ range, kpis, counters, salesTrend, topProduc
                                     stroke="#EFAFB8"
                                     strokeWidth={2}
                                     fill="url(#resellerFill)"
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="consignment"
+                                    name="Consignment"
+                                    stroke="#C98B4B"
+                                    strokeWidth={2}
+                                    fill="url(#consignmentFill)"
                                 />
                                 <Area
                                     type="monotone"

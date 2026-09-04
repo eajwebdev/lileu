@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ConsignmentSettlement;
 use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\PosSale;
@@ -30,6 +31,12 @@ class DashboardController extends Controller
         $resellerCollected = (float) Payment::where('status', Payment::STATUS_PAID)
             ->whereBetween('paid_at', [$from, $to])->sum('amount');
 
+        // Cash handed over when a consigned batch is settled. It is money the
+        // shop has actually taken, so it belongs in sales beside the counter
+        // and the reseller channel.
+        $consignmentCollected = (float) ConsignmentSettlement::whereBetween('settled_on', [$from, $to])
+            ->sum('amount_collected');
+
         $purchases = (float) Purchase::whereBetween('purchased_on', [$from, $to])->sum('amount');
         $expenses = (float) Expense::whereBetween('incurred_on', [$from, $to])->sum('amount');
 
@@ -52,7 +59,7 @@ class DashboardController extends Controller
                 .' - reseller_order_items.unit_price) * reseller_order_items.quantity',
             ));
 
-        $sales = round($posSales + $resellerCollected, 2);
+        $sales = round($posSales + $resellerCollected + $consignmentCollected, 2);
 
         return Inertia::render('Admin/Dashboard', [
             'range' => $range,
@@ -64,6 +71,7 @@ class DashboardController extends Controller
                 'commissions' => round($commissions, 2),
                 'pos_sales' => round($posSales, 2),
                 'reseller_collected' => round($resellerCollected, 2),
+                'consignment_collected' => round($consignmentCollected, 2),
             ],
             'counters' => [
                 'pending_applications' => Reseller::where('status', Reseller::STATUS_PENDING)->count(),
@@ -158,6 +166,10 @@ class DashboardController extends Controller
             ->selectRaw('DATE(paid_at) as d, SUM(amount) as amount')
             ->groupBy('d')->pluck('amount', 'd');
 
+        $consignment = ConsignmentSettlement::whereBetween('settled_on', [$from, $to])
+            ->selectRaw('DATE(settled_on) as d, SUM(amount_collected) as amount')
+            ->groupBy('d')->pluck('amount', 'd');
+
         $days = [];
         for ($day = $from->copy(); $day->lte($to); $day->addDay()) {
             $key = $day->format('Y-m-d');
@@ -165,6 +177,7 @@ class DashboardController extends Controller
                 'date' => $day->format('M j'),
                 'pos' => round((float) ($pos[$key] ?? 0), 2),
                 'reseller' => round((float) ($reseller[$key] ?? 0), 2),
+                'consignment' => round((float) ($consignment[$key] ?? 0), 2),
             ];
         }
 

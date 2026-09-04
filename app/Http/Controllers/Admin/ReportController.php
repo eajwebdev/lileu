@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ConsignmentSettlement;
 use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\PosSale;
@@ -25,18 +26,23 @@ class ReportController extends Controller
             ->whereBetween('created_at', [$from, $to])->sum('total');
         $collected = (float) Payment::where('status', Payment::STATUS_PAID)
             ->whereBetween('paid_at', [$from, $to])->sum('amount');
+        // Cash collected when a consigned batch is settled counts as sales.
+        $consigned = (float) ConsignmentSettlement::whereBetween('settled_on', [$from, $to])
+            ->sum('amount_collected');
         $purchases = (float) Purchase::whereBetween('purchased_on', [$from, $to])->sum('amount');
         $expenses = (float) Expense::whereBetween('incurred_on', [$from, $to])->sum('amount');
+        $gross = $posSales + $collected + $consigned;
 
         return Inertia::render('Admin/Reports/Index', [
             'range' => ['from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d')],
             'summary' => [
                 'pos_sales' => round($posSales, 2),
                 'reseller_collected' => round($collected, 2),
-                'gross_sales' => round($posSales + $collected, 2),
+                'consignment_collected' => round($consigned, 2),
+                'gross_sales' => round($gross, 2),
                 'purchases' => round($purchases, 2),
                 'expenses' => round($expenses, 2),
-                'net_profit' => round($posSales + $collected - $purchases - $expenses, 2),
+                'net_profit' => round($gross - $purchases - $expenses, 2),
                 'orders_placed' => ResellerOrder::whereBetween('created_at', [$from, $to])->count(),
                 'receivables' => round((float) ResellerOrder::where('status', '!=', ResellerOrder::STATUS_CANCELLED)
                     ->sum('balance'), 2),
