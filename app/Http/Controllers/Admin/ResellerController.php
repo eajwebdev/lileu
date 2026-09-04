@@ -40,11 +40,14 @@ class ResellerController extends Controller
                 'email' => $r->email,
                 'phone' => $r->phone,
                 'city' => $r->city,
+                'address' => $r->address,
                 'status' => $r->status,
                 'engagement' => $r->engagement,
                 'orders_count' => $r->orders_count,
                 'lifetime_value' => (float) $r->lifetime_value,
                 'discount_percent' => $r->discount_percent,
+                'downpayment_percent' => $r->downpayment_percent,
+                'admin_notes' => $r->admin_notes,
                 'applied_on' => $r->applied_at?->format('M j, Y'),
             ]);
 

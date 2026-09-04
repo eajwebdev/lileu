@@ -86,11 +86,20 @@ class OrderService
     }
 
     /**
-     * Negotiated pivot price beats the standard reseller price. The deal is
-     * struck per product, so every flavour of it inherits the same rate.
+     * What a seller pays per unit.
+     *
+     * A flavour carries its own reseller price, and that always wins — a
+     * negotiated rate is stored against the product, so honouring it here
+     * would flatten three differently priced flavours into one number.
+     * The negotiated rate therefore only applies to products sold as
+     * themselves, where there is no flavour price to contradict it.
      */
     public function priceFor(Reseller $reseller, Sellable $sellable): float
     {
+        if ($sellable->sellableVariantId() !== null) {
+            return $sellable->resellerPrice();
+        }
+
         $pivot = $reseller->products()
             ->where('products.id', $sellable->sellableProductId())
             ->first()?->pivot;

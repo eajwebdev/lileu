@@ -1,7 +1,7 @@
 import { Link, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Plus, Search, UsersRound } from 'lucide-react';
+import { Pencil, Plus, Search, UsersRound } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import {
     Badge,
@@ -37,6 +37,7 @@ const TABS = [
 export default function Index({ resellers, filters, counts }) {
     const [term, setTerm] = useState(filters.q ?? '');
     const [adding, setAdding] = useState(false);
+    const [editing, setEditing] = useState(null);
 
     const apply = (next) =>
         router.get(route('admin.resellers.index'), { ...filters, ...next }, { preserveState: true, replace: true });
@@ -110,6 +111,7 @@ export default function Index({ resellers, filters, counts }) {
                                     <th>Status</th>
                                     <th className="text-center">Orders</th>
                                     <th className="text-right">Lifetime value</th>
+                                    <th className="text-right">Edit</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -153,6 +155,18 @@ export default function Index({ resellers, filters, counts }) {
                                         <td className="text-right font-semibold tabular-nums text-chocolate-700">
                                             <Money value={reseller.lifetime_value} />
                                         </td>
+                                        <td>
+                                            <div className="flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditing(reseller)}
+                                                    className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cream-200 hover:text-chocolate-700"
+                                                    aria-label={`Edit ${reseller.business_name || reseller.name}`}
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -164,6 +178,12 @@ export default function Index({ resellers, filters, counts }) {
             </Card>
 
             <AddSellerModal open={adding} onClose={() => setAdding(false)} />
+
+            <EditSellerModal
+                open={editing !== null}
+                reseller={editing}
+                onClose={() => setEditing(null)}
+            />
         </AdminLayout>
     );
 }
@@ -323,6 +343,141 @@ function AddSellerModal({ open, onClose }) {
                         </Field>
                     </>
                 )}
+            </form>
+        </Modal>
+    );
+}
+
+/**
+ * Edit a seller in place.
+ *
+ * Name and email are deliberately absent: they belong to the person's own
+ * account, and the status switch lives on their detail page beside the
+ * message that explains the change.
+ */
+function EditSellerModal({ open, reseller, onClose }) {
+    const form = useForm({
+        business_name: '',
+        phone: '',
+        city: '',
+        address: '',
+        engagement: 'reseller',
+        discount_percent: 0,
+        downpayment_percent: 50,
+        admin_notes: '',
+    });
+
+    useEffect(() => {
+        if (!open || !reseller) return;
+
+        form.clearErrors();
+        form.setData({
+            business_name: reseller.business_name ?? '',
+            phone: reseller.phone ?? '',
+            city: reseller.city ?? '',
+            address: reseller.address ?? '',
+            engagement: reseller.engagement ?? 'reseller',
+            discount_percent: reseller.discount_percent ?? 0,
+            downpayment_percent: reseller.downpayment_percent ?? 50,
+            admin_notes: reseller.admin_notes ?? '',
+        });
+    }, [open, reseller?.id]);
+
+    if (!reseller) return null;
+
+    const submit = (e) => {
+        e.preventDefault();
+
+        form.put(route('admin.resellers.update', reseller.id), {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={`Edit ${reseller.business_name || reseller.name}`}
+            description={reseller.code}
+            footer={
+                <>
+                    <Button type="button" variant="secondary" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" form="edit-seller-form" disabled={form.processing}>
+                        Save changes
+                    </Button>
+                </>
+            }
+        >
+            <form id="edit-seller-form" onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+                <Field label="Business name" error={form.errors.business_name} className="sm:col-span-2">
+                    <Input
+                        value={form.data.business_name}
+                        onChange={(e) => form.setData('business_name', e.target.value)}
+                        placeholder={reseller.name}
+                    />
+                </Field>
+                <Field label="Phone" error={form.errors.phone} required>
+                    <Input value={form.data.phone} onChange={(e) => form.setData('phone', e.target.value)} />
+                </Field>
+                <Field label="City" error={form.errors.city}>
+                    <Input value={form.data.city} onChange={(e) => form.setData('city', e.target.value)} />
+                </Field>
+                <Field label="Address" error={form.errors.address} className="sm:col-span-2">
+                    <Textarea
+                        rows={2}
+                        value={form.data.address}
+                        onChange={(e) => form.setData('address', e.target.value)}
+                    />
+                </Field>
+                <Field label="Engagement" error={form.errors.engagement} required className="sm:col-span-2">
+                    <Select
+                        value={form.data.engagement}
+                        onChange={(e) => form.setData('engagement', e.target.value)}
+                    >
+                        <option value="reseller">Buys wholesale</option>
+                        <option value="consignment">Consignment</option>
+                        <option value="both">Wholesale + consignment</option>
+                    </Select>
+                </Field>
+                <Field
+                    label="Discount %"
+                    error={form.errors.discount_percent}
+                    hint="Taken off their order subtotal"
+                    required
+                >
+                    <Input
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={form.data.discount_percent}
+                        onChange={(e) => form.setData('discount_percent', e.target.value)}
+                    />
+                </Field>
+                <Field
+                    label="Downpayment %"
+                    error={form.errors.downpayment_percent}
+                    hint="Required before an order is confirmed"
+                    required
+                >
+                    <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.data.downpayment_percent}
+                        onChange={(e) => form.setData('downpayment_percent', e.target.value)}
+                    />
+                </Field>
+                <Field label="Internal notes" error={form.errors.admin_notes} className="sm:col-span-2">
+                    <Textarea
+                        rows={3}
+                        value={form.data.admin_notes}
+                        onChange={(e) => form.setData('admin_notes', e.target.value)}
+                        placeholder="Only staff see this."
+                    />
+                </Field>
             </form>
         </Modal>
     );

@@ -43,15 +43,15 @@ export default function Create({ sellers, products }) {
         [products, term],
     );
 
-    // A consignee is a reseller, so they take stock at the rate they buy at:
-    // their negotiated price when one exists, the standard wholesale price
-    // otherwise. Picking a different seller reprices the whole basket.
+    // A consignee is a reseller, so they take stock at the rate they buy at.
+    // A flavour's own reseller price always wins; a rate negotiated against
+    // the product only applies where there are no flavours to contradict it.
     const seller = sellers.find((s) => String(s.id) === String(data.reseller_id));
 
     const rateFor = (product) => {
-        const negotiated = seller?.prices?.[product.product_id];
+        if (product.variant_id) return product.reseller_price;
 
-        return negotiated ?? product.reseller_price;
+        return seller?.prices?.[product.product_id] ?? product.reseller_price;
     };
 
     const lines = useMemo(

@@ -361,4 +361,72 @@ class AdminManagementTest extends TestCase
         // Applications are reviewed, never auto-approved.
         $this->assertSame(Reseller::STATUS_PENDING, $applicant->status);
     }
+
+    public function test_a_seller_can_be_edited_from_the_list(): void
+    {
+        $seller = $this->approvedSeller();
+
+        // The list carries everything the edit form needs to open filled in.
+        $this->actingAs($this->admin)
+            ->get(route('admin.resellers.index'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Resellers/Index')
+                ->has('resellers.data.0.address')
+                ->has('resellers.data.0.downpayment_percent')
+                ->has('resellers.data.0.admin_notes'));
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.resellers.update', $seller), [
+                'business_name' => 'Juan Sweets & Co',
+                'phone' => '09170000123',
+                'city' => 'Mabinay',
+                'address' => 'Poblacion, Mabinay',
+                'engagement' => 'consignment',
+                'discount_percent' => 12,
+                'downpayment_percent' => 25,
+                'admin_notes' => 'Pays on time.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $seller->refresh();
+
+        $this->assertSame('Juan Sweets & Co', $seller->business_name);
+        $this->assertSame('consignment', $seller->engagement);
+        $this->assertSame(12, $seller->discount_percent);
+        $this->assertSame(25, $seller->downpayment_percent);
+        $this->assertSame('Pays on time.', $seller->admin_notes);
+    }
+
+    public function test_editing_a_seller_cannot_set_an_impossible_discount(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.resellers.update', $seller), [
+                'phone' => '09170000123',
+                'engagement' => 'both',
+                'discount_percent' => 80,      // capped at 50
+                'downpayment_percent' => 150,  // capped at 100
+            ])
+            ->assertSessionHasErrors(['discount_percent', 'downpayment_percent']);
+
+        $this->assertSame(0, $seller->refresh()->discount_percent);
+    }
+
+    public function test_editing_a_seller_leaves_their_status_alone(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.resellers.update', $seller), [
+                'phone' => '09170000123',
+                'engagement' => 'both',
+                'discount_percent' => 5,
+                'downpayment_percent' => 50,
+            ])
+            ->assertSessionHasNoErrors();
+
+        // Status changes go through the approval flow, not the edit form.
+        $this->assertSame(Reseller::STATUS_APPROVED, $seller->refresh()->status);
+    }
 }

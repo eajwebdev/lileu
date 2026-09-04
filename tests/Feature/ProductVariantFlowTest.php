@@ -701,27 +701,62 @@ class ProductVariantFlowTest extends TestCase
         $this->assertSame('48.00', $consignment->issued_value);
     }
 
-    public function test_a_negotiated_reseller_rate_carries_over_to_consignments(): void
+    public function test_a_flavours_own_reseller_price_beats_a_product_level_deal(): void
     {
         $seller = $this->approvedSeller();
 
-        // The shop has agreed a special rate on this product with this seller.
+        // A rate negotiated against the product cannot speak for three
+        // differently priced flavours, so the flavour's own price stands.
         $seller->products()->sync([
             $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
         ]);
 
         $consignment = app(ConsignmentService::class)->issue(
             $seller,
-            [['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 4]],
+            [
+                ['product_id' => $this->product->id, 'product_variant_id' => $this->classic->id, 'quantity' => 1],
+                ['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 1],
+            ],
             ['issued_on' => now()->toDateString()],
             $this->admin,
         );
 
-        $item = $consignment->items()->sole();
+        $priced = $consignment->items->pluck('unit_price', 'variant_name');
 
-        // The deal is struck per product, so the flavour inherits it.
-        $this->assertSame('8.50', $item->unit_price, 'The negotiated rate wins over the standard 12.');
-        $this->assertSame('34.00', $consignment->issued_value);
+        $this->assertSame('10.00', $priced['Cloudy Classic'], 'Its own reseller price, not the 8.50 deal.');
+        $this->assertSame('12.00', $priced['Misty Green']);
+        $this->assertSame('22.00', $consignment->issued_value);
+    }
+
+    public function test_a_product_level_deal_still_applies_where_there_are_no_flavours(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $simple = Product::create([
+            'category_id' => $this->product->category_id,
+            'name' => 'Munchkin Glazed',
+            'slug' => 'munchkin-glazed',
+            'sku' => 'MK-GL',
+            'retail_price' => 10,
+            'reseller_price' => 8,
+            'stock' => 30,
+            'min_reseller_qty' => 1,
+        ]);
+
+        $seller->products()->sync([
+            $simple->id => ['custom_price' => 6.5, 'is_approved' => true],
+        ]);
+
+        $consignment = app(ConsignmentService::class)->issue(
+            $seller,
+            [['product_id' => $simple->id, 'quantity' => 4]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        // Nothing contradicts the deal here, so it holds.
+        $this->assertSame('6.50', $consignment->items()->sole()->unit_price);
+        $this->assertSame('26.00', $consignment->issued_value);
     }
 
     public function test_a_seller_without_a_deal_still_gets_the_standard_rate(): void
@@ -792,10 +827,6 @@ class ProductVariantFlowTest extends TestCase
     public function test_settlement_bills_the_seller_at_the_rate_they_took_stock_at(): void
     {
         $seller = $this->approvedSeller();
-        $seller->products()->sync([
-            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
-        ]);
-
         $consignments = app(ConsignmentService::class);
 
         $consignment = $consignments->issue(
@@ -805,6 +836,9 @@ class ProductVariantFlowTest extends TestCase
             $this->admin,
         );
 
+        // Repricing the flavour afterwards must not rewrite what is owed.
+        $this->matcha->update(['reseller_price' => 20]);
+
         $consignments->settle(
             $consignment,
             [['consignment_item_id' => $consignment->items()->sole()->id, 'sold' => 4]],
@@ -812,8 +846,8 @@ class ProductVariantFlowTest extends TestCase
             $this->admin,
         );
 
-        // 4 x 8.50, the negotiated rate — not 4 x 12.
-        $this->assertSame('34.00', $consignment->refresh()->sold_value);
-        $this->assertSame('34.00', \App\Models\ConsignmentSettlement::sole()->amount_collected);
+        // 4 x 12, the rate the stock actually left at.
+        $this->assertSame('48.00', $consignment->refresh()->sold_value);
+        $this->assertSame('48.00', \App\Models\ConsignmentSettlement::sole()->amount_collected);
     }
 }
