@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Support\ProductImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -56,6 +57,8 @@ class ProductController extends Controller
                     'sku' => $v->sku,
                     'description' => $v->description,
                     'image_path' => $v->image_path,
+                    'image_url' => $v->image_url,
+                    'has_own_image' => (bool) $v->image_path,
                     'retail_price' => (float) $v->retail_price,
                     'reseller_price' => (float) $v->reseller_price,
                     'cost_price' => (float) $v->cost_price,
@@ -80,6 +83,7 @@ class ProductController extends Controller
     {
         $data = $this->validated($request);
         $data['slug'] = $this->uniqueSlug($data['name']);
+        $data['image_path'] = $this->image($request);
 
         Product::create($data);
 
@@ -94,6 +98,8 @@ class ProductController extends Controller
             $data['slug'] = $this->uniqueSlug($data['name'], $product->id);
         }
 
+        $data['image_path'] = $this->image($request, $product->image_path);
+
         $product->update($data);
 
         return back()->with('success', 'Product updated.');
@@ -103,6 +109,7 @@ class ProductController extends Controller
     {
         // Historic orders keep their own name/price snapshot, so removing a
         // product never rewrites a past receipt.
+        ProductImage::forget($product->image_path);
         $product->delete();
 
         return back()->with('success', 'Product removed.');
@@ -131,7 +138,8 @@ class ProductController extends Controller
             'sku' => ['required', 'string', 'max:60', Rule::unique('products', 'sku')->ignore($product?->id)],
             'category_id' => ['nullable', 'exists:categories,id'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'image_path' => ['nullable', 'string', 'max:500'],
+            'image' => ProductImage::RULES,
+            'remove_image' => ['nullable', 'boolean'],
             'retail_price' => ['required', 'numeric', 'min:0'],
             'reseller_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
@@ -145,6 +153,22 @@ class ProductController extends Controller
             'available_to_resellers' => ['boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+    }
+
+    /** @see ProductVariantController::image() — same rule, same reasoning. */
+    private function image(Request $request, ?string $current = null): ?string
+    {
+        if ($request->hasFile('image')) {
+            return ProductImage::put($request->file('image'), $current);
+        }
+
+        if ($request->boolean('remove_image')) {
+            ProductImage::forget($current);
+
+            return null;
+        }
+
+        return $current;
     }
 
     private function uniqueSlug(string $name, ?int $ignoreId = null): string

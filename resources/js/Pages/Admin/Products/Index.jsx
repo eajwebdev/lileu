@@ -1,7 +1,18 @@
 import { router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { ChevronDown, ChevronRight, IceCreamCone, Package, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import {
+    ChevronDown,
+    ChevronRight,
+    IceCreamCone,
+    ImagePlus,
+    Package,
+    Pencil,
+    Plus,
+    Search,
+    Tags,
+    Trash2,
+} from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import {
     Badge,
@@ -24,7 +35,8 @@ const BLANK = {
     sku: '',
     category_id: '',
     description: '',
-    image_path: '',
+    image: null,
+    remove_image: false,
     retail_price: '',
     reseller_price: '',
     cost_price: '',
@@ -45,7 +57,8 @@ const BLANK_VARIANT = {
     name: '',
     sku: '',
     description: '',
-    image_path: '',
+    image: null,
+    remove_image: false,
     retail_price: '',
     reseller_price: '',
     cost_price: '',
@@ -80,7 +93,8 @@ export default function Index({ products, categories, filters }) {
             sku: product.sku,
             category_id: product.category_id ?? '',
             description: product.description ?? '',
-            image_path: product.image_path ?? '',
+            image: null,
+            remove_image: false,
             retail_price: product.retail_price,
             reseller_price: product.reseller_price,
             cost_price: product.cost_price,
@@ -106,7 +120,10 @@ export default function Index({ products, categories, filters }) {
         if (editing === 'new') {
             form.post(route('admin.products.store'), { preserveScroll: true, onSuccess });
         } else {
-            form.put(route('admin.products.update', editing.id), { preserveScroll: true, onSuccess });
+            // A multipart PUT is not parsed by PHP, so spoof the method.
+            form
+                .transform((d) => ({ ...d, _method: 'put' }))
+                .post(route('admin.products.update', editing.id), { preserveScroll: true, onSuccess });
         }
     };
 
@@ -347,6 +364,7 @@ export default function Index({ products, categories, filters }) {
                                                     onEdit={(variant) =>
                                                         setVariantEditing({ product, variant })
                                                     }
+                                                    onAdd={() => setVariantEditing({ product, variant: null })}
                                                 />
                                             </td>
                                         </tr>,
@@ -409,14 +427,17 @@ export default function Index({ products, categories, filters }) {
                     </Field>
 
                     <Field
-                        label="Image path or URL"
-                        hint="e.g. /images/products/graham-nest.jpg"
-                        error={form.errors.image_path}
+                        label="Photo"
+                        error={form.errors.image}
+                        hint="JPG, PNG or WebP, up to 4MB. Flavours without their own photo use this one."
                         className="sm:col-span-2"
                     >
-                        <Input
-                            value={form.data.image_path}
-                            onChange={(e) => form.setData('image_path', e.target.value)}
+                        <VariantImageField
+                            file={form.data.image}
+                            currentUrl={editing?.image_url}
+                            removed={form.data.remove_image}
+                            onPick={(file) => form.setData({ ...form.data, image: file, remove_image: false })}
+                            onClear={() => form.setData({ ...form.data, image: null, remove_image: true })}
                         />
                     </Field>
 
@@ -599,120 +620,174 @@ function CategoryModal({ open, onClose, categories }) {
 /**
  * The flavours of one product, each with the price and stock it sells at.
  */
-function VariantRows({ product, onEdit }) {
+/**
+ * The flavours of one product.
+ *
+ * Laid out as cards rather than a nested table: the parent row is already a
+ * table cell, and a table inside a cell leaves no room to breathe — prices,
+ * stock and the availability switch end up touching. A grid also gives the
+ * photo somewhere to live and keeps every flavour scannable at a glance.
+ */
+function VariantRows({ product, onEdit, onAdd }) {
+    const inStock = product.variants
+        .filter((v) => v.tracks_stock)
+        .reduce((sum, v) => sum + v.stock, 0);
+
+    const lowCount = product.variants.filter((v) => v.tracks_stock && v.is_low_stock).length;
+
     return (
-        <div className="overflow-x-auto rounded-xl border border-cream-200 bg-vanilla">
-            <table className="table-lileu min-w-full">
-                <thead>
-                    <tr>
-                        <th>Flavour</th>
-                        <th className="text-right">Retail</th>
-                        <th className="text-right">Reseller</th>
-                        <th className="text-right">Cost</th>
-                        <th className="text-right">Stock</th>
-                        <th>Visibility</th>
-                        <th className="text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {product.variants.map((variant) => (
-                        <tr key={variant.id}>
-                            <td>
-                                <p className="font-medium text-chocolate-700">{variant.name}</p>
-                                <p className="font-mono text-[11px] text-chocolate-300">{variant.sku}</p>
-                            </td>
-                            <td className="text-right font-semibold tabular-nums text-chocolate-700">
-                                <Money value={variant.retail_price} />
-                            </td>
-                            <td className="text-right tabular-nums">
-                                <Money value={variant.reseller_price} />
-                            </td>
-                            <td className="text-right tabular-nums text-chocolate-400">
-                                <Money value={variant.cost_price} />
-                            </td>
-                            <td className="text-right">
-                                {variant.tracks_stock ? (
-                                    <span
-                                        className={clsx(
-                                            'badge',
-                                            variant.is_low_stock
-                                                ? 'bg-caramel-soft/30 text-caramel-dark'
-                                                : 'bg-success-light text-success',
-                                        )}
-                                    >
-                                        {variant.stock}
+        <div className="rounded-2xl border border-cream-300 bg-vanilla p-3">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-chocolate-400">
+                    {product.variants.length} {product.variants.length === 1 ? 'flavour' : 'flavours'}
+                    <span className="ml-2 font-normal normal-case tracking-normal text-chocolate-300">
+                        {inStock} in stock
+                        {lowCount > 0 && (
+                            <span className="ml-1.5 font-medium text-caramel-dark">
+                                · {lowCount} running low
+                            </span>
+                        )}
+                    </span>
+                </p>
+
+                <Button type="button" variant="secondary" onClick={onAdd} className="px-3 py-1.5 text-xs">
+                    <Plus className="h-3.5 w-3.5" /> Add flavour
+                </Button>
+            </div>
+
+            <ul className="space-y-1.5">
+                {product.variants.map((variant) => (
+                    <li
+                        key={variant.id}
+                        className={clsx(
+                            'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 transition',
+                            'lg:grid-cols-[auto_minmax(0,1.4fr)_repeat(3,minmax(0,5rem))_auto_auto]',
+                            variant.is_active
+                                ? 'border-cream-200 bg-cream-50/60 hover:border-blush-200 hover:bg-blush-50/40'
+                                : 'border-cream-200 bg-cream-100/70 opacity-60',
+                        )}
+                    >
+                        {/* Photo — its own, or the product's when it has none. */}
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-cream-300 bg-cream-200">
+                            {variant.image_url ? (
+                                <img src={variant.image_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                                <div className="flex h-full w-full items-center justify-center text-chocolate-300">
+                                    <IceCreamCone className="h-4 w-4" />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="truncate font-medium text-chocolate-700">{variant.name}</p>
+                                {!variant.is_active && <Badge tone="muted-red">Hidden</Badge>}
+                                {!variant.has_own_image && (
+                                    <span className="text-[10px] uppercase tracking-wide text-chocolate-300">
+                                        product photo
                                     </span>
-                                ) : (
-                                    <Badge tone="blush">Made to order</Badge>
                                 )}
-                            </td>
-                            <td>
-                                <div className="flex flex-wrap gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            router.patch(
-                                                route('admin.products.variants.availability', [
-                                                    product.id,
-                                                    variant.id,
-                                                ]),
-                                                { is_available: !variant.is_available },
-                                                { preserveScroll: true },
-                                            )
-                                        }
-                                        aria-pressed={variant.is_available}
-                                        className={clsx(
-                                            'badge cursor-pointer border transition active:scale-95',
-                                            variant.is_available
-                                                ? 'border-success/20 bg-success-light text-success hover:bg-success/15'
-                                                : 'border-cherry/20 bg-cherry/10 text-cherry-dark hover:bg-cherry/15',
-                                        )}
-                                    >
-                                        <span
-                                            className={clsx(
-                                                'h-1.5 w-1.5 rounded-full',
-                                                variant.is_available ? 'bg-success' : 'bg-cherry',
-                                            )}
-                                        />
-                                        {variant.is_available ? 'Available' : 'Unavailable'}
-                                    </button>
-                                    {!variant.is_active && <Badge tone="muted-red">Hidden</Badge>}
-                                </div>
-                            </td>
-                            <td>
-                                <div className="flex justify-end gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => onEdit(variant)}
-                                        className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cream-200 hover:text-chocolate-700"
-                                        aria-label={`Edit ${variant.name}`}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (window.confirm(`Remove ${variant.name}?`)) {
-                                                router.delete(
-                                                    route('admin.products.variants.destroy', [
-                                                        product.id,
-                                                        variant.id,
-                                                    ]),
-                                                    { preserveScroll: true },
-                                                );
-                                            }
-                                        }}
-                                        className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cherry/10 hover:text-cherry"
-                                        aria-label={`Delete ${variant.name}`}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+                            </div>
+                            <p className="font-mono text-[11px] text-chocolate-300">{variant.sku}</p>
+                        </div>
+
+                        <PriceCell label="Retail" value={variant.retail_price} strong />
+                        <PriceCell label="Reseller" value={variant.reseller_price} />
+                        <PriceCell label="Cost" value={variant.cost_price} muted />
+
+                        {/* Stock and the availability switch, each clearly apart. */}
+                        <div className="flex items-center gap-2 lg:justify-end">
+                            {variant.tracks_stock ? (
+                                <span
+                                    className={clsx(
+                                        'badge whitespace-nowrap',
+                                        variant.stock === 0
+                                            ? 'bg-cherry/10 text-cherry-dark'
+                                            : variant.is_low_stock
+                                              ? 'bg-caramel-soft/30 text-caramel-dark'
+                                              : 'bg-success-light text-success',
+                                    )}
+                                    title={`Low stock below ${variant.low_stock_threshold}`}
+                                >
+                                    {variant.stock} pcs
+                                </span>
+                            ) : (
+                                <Badge tone="blush">Made to order</Badge>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    router.patch(
+                                        route('admin.products.variants.availability', [product.id, variant.id]),
+                                        { is_available: !variant.is_available },
+                                        { preserveScroll: true },
+                                    )
+                                }
+                                aria-pressed={variant.is_available}
+                                aria-label={`${variant.is_available ? 'Mark' : 'Make'} ${variant.name} ${variant.is_available ? 'unavailable' : 'available'}`}
+                                className={clsx(
+                                    'badge cursor-pointer whitespace-nowrap border transition active:scale-95',
+                                    variant.is_available
+                                        ? 'border-success/20 bg-success-light text-success hover:bg-success/15'
+                                        : 'border-cherry/20 bg-cherry/10 text-cherry-dark hover:bg-cherry/15',
+                                )}
+                            >
+                                <span
+                                    className={clsx(
+                                        'h-1.5 w-1.5 rounded-full',
+                                        variant.is_available ? 'bg-success' : 'bg-cherry',
+                                    )}
+                                />
+                                {variant.is_available ? 'Available' : 'Unavailable'}
+                            </button>
+                        </div>
+
+                        <div className="flex justify-end gap-0.5">
+                            <button
+                                type="button"
+                                onClick={() => onEdit(variant)}
+                                className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cream-200 hover:text-chocolate-700"
+                                aria-label={`Edit ${variant.name}`}
+                            >
+                                <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (window.confirm(`Remove ${variant.name}?`)) {
+                                        router.delete(
+                                            route('admin.products.variants.destroy', [product.id, variant.id]),
+                                            { preserveScroll: true },
+                                        );
+                                    }
+                                }}
+                                className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cherry/10 hover:text-cherry"
+                                aria-label={`Delete ${variant.name}`}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/** One price, labelled — so a bare number is never ambiguous on a narrow screen. */
+function PriceCell({ label, value, strong, muted }) {
+    return (
+        <div className="lg:text-right">
+            <p className="text-[10px] uppercase tracking-wide text-chocolate-300">{label}</p>
+            <p
+                className={clsx(
+                    'tabular-nums',
+                    strong ? 'font-semibold text-chocolate-700' : muted ? 'text-chocolate-400' : 'text-chocolate-600',
+                )}
+            >
+                <Money value={value} />
+            </p>
         </div>
     );
 }
@@ -731,7 +806,8 @@ function VariantModal({ open, product, variant, onClose }) {
                       name: variant.name,
                       sku: variant.sku,
                       description: variant.description ?? '',
-                      image_path: variant.image_path ?? '',
+                      image: null,
+                      remove_image: false,
                       retail_price: variant.retail_price,
                       reseller_price: variant.reseller_price,
                       cost_price: variant.cost_price,
@@ -753,8 +829,15 @@ function VariantModal({ open, product, variant, onClose }) {
 
         const options = { preserveScroll: true, onSuccess: onClose };
 
-        if (variant) form.put(route('admin.products.variants.update', [product.id, variant.id]), options);
-        else form.post(route('admin.products.variants.store', product.id), options);
+        if (variant) {
+            // PHP does not parse a multipart PUT body, so the update goes over
+            // POST with the real method spoofed alongside it.
+            form
+                .transform((d) => ({ ...d, _method: 'put' }))
+                .post(route('admin.products.variants.update', [product.id, variant.id]), options);
+        } else {
+            form.post(route('admin.products.variants.store', product.id), options);
+        }
     };
 
     return (
@@ -848,6 +931,21 @@ function VariantModal({ open, product, variant, onClose }) {
                         onChange={(e) => form.setData('sort_order', e.target.value)}
                     />
                 </Field>
+                <Field
+                    label="Photo"
+                    error={form.errors.image}
+                    hint="JPG, PNG or WebP, up to 4MB. Leave empty to use the product's own photo."
+                    className="sm:col-span-2"
+                >
+                    <VariantImageField
+                        file={form.data.image}
+                        currentUrl={variant?.image_url}
+                        removed={form.data.remove_image}
+                        onPick={(file) => form.setData({ ...form.data, image: file, remove_image: false })}
+                        onClear={() => form.setData({ ...form.data, image: null, remove_image: true })}
+                    />
+                </Field>
+
                 <div className="space-y-2.5 sm:col-span-2">
                     <Toggle
                         checked={form.data.tracks_stock}
@@ -870,5 +968,71 @@ function VariantModal({ open, product, variant, onClose }) {
                 </div>
             </form>
         </Modal>
+    );
+}
+
+/**
+ * Pick a photo for one flavour.
+ *
+ * Shows whichever picture would actually appear: the file just chosen, the one
+ * already saved, or nothing. A flavour with no photo of its own falls back to
+ * the product's, so clearing here is a real choice rather than a blank slate.
+ */
+function VariantImageField({ file, currentUrl, removed, onPick, onClear }) {
+    const [preview, setPreview] = useState(null);
+
+    // Object URLs have to be released, or the tab leaks one per pick.
+    useEffect(() => {
+        if (!file) {
+            setPreview(null);
+
+            return undefined;
+        }
+
+        const url = URL.createObjectURL(file);
+        setPreview(url);
+
+        return () => URL.revokeObjectURL(url);
+    }, [file]);
+
+    const shown = preview ?? (removed ? null : currentUrl);
+
+    return (
+        <div className="flex items-center gap-3">
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-cream-300 bg-cream-100">
+                {shown ? (
+                    <img src={shown} alt="" className="h-full w-full object-cover" />
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center text-chocolate-300">
+                        <ImagePlus className="h-6 w-6" />
+                    </div>
+                )}
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-2">
+                <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-chocolate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-cream-200 file:px-3 file:py-2 file:text-sm file:font-medium file:text-chocolate-700 hover:file:bg-cream-300"
+                />
+
+                {shown && (
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-chocolate-400 transition hover:text-cherry"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove photo
+                    </button>
+                )}
+
+                {removed && !preview && (
+                    <p className="text-xs text-caramel-dark">
+                        Photo will be removed when you save; the product photo takes over.
+                    </p>
+                )}
+            </div>
+        </div>
     );
 }

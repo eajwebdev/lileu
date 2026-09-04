@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use App\Contracts\Sellable;
+use App\Support\ProductImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A flavour of a product, holding its own price and stock.
@@ -44,13 +44,7 @@ class ProductVariant extends Model implements Sellable
     /** Falls back to the parent product's picture when the flavour has none. */
     public function getImageUrlAttribute(): ?string
     {
-        $path = $this->image_path ?: $this->product?->image_path;
-
-        if (! $path) {
-            return null;
-        }
-
-        return str_starts_with($path, 'http') ? $path : Storage::url($path);
+        return ProductImage::url($this->image_path ?: $this->product?->image_path);
     }
 
     public function getIsLowStockAttribute(): bool

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Support\ProductImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -20,6 +21,7 @@ class ProductVariantController extends Controller
         $data = $this->validated($request);
         $data['product_id'] = $product->id;
         $data['slug'] = $this->uniqueSlug($product, $data['name']);
+        $data['image_path'] = $this->image($request);
 
         ProductVariant::create($data);
 
@@ -36,6 +38,8 @@ class ProductVariantController extends Controller
             $data['slug'] = $this->uniqueSlug($product, $data['name'], $variant->id);
         }
 
+        $data['image_path'] = $this->image($request, $variant->image_path);
+
         $variant->update($data);
 
         return back()->with('success', "{$variant->name} updated.");
@@ -48,6 +52,7 @@ class ProductVariantController extends Controller
         // Past receipts keep their own name and price snapshot, so removing a
         // flavour never rewrites what was already sold.
         $name = $variant->name;
+        ProductImage::forget($variant->image_path);
         $variant->delete();
 
         return back()->with('success', "{$name} removed from {$product->name}.");
@@ -76,7 +81,8 @@ class ProductVariantController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['required', 'string', 'max:60', Rule::unique('product_variants', 'sku')->ignore($variant?->id)],
             'description' => ['nullable', 'string', 'max:500'],
-            'image_path' => ['nullable', 'string', 'max:500'],
+            'image' => ProductImage::RULES,
+            'remove_image' => ['nullable', 'boolean'],
             'retail_price' => ['required', 'numeric', 'min:0'],
             'reseller_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
@@ -87,6 +93,26 @@ class ProductVariantController extends Controller
             'is_available' => ['required', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+    }
+
+    /**
+     * The picture to save: a new upload, an explicit removal, or whatever the
+     * flavour already had. Submitting the form without touching the file field
+     * must never quietly drop the existing image.
+     */
+    private function image(Request $request, ?string $current = null): ?string
+    {
+        if ($request->hasFile('image')) {
+            return ProductImage::put($request->file('image'), $current);
+        }
+
+        if ($request->boolean('remove_image')) {
+            ProductImage::forget($current);
+
+            return null;
+        }
+
+        return $current;
     }
 
     private function uniqueSlug(Product $product, string $name, ?int $ignoreId = null): string

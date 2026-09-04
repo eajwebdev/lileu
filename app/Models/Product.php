@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use App\Contracts\Sellable;
+use App\Support\ProductImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A product either stands alone or comes in flavours.
@@ -62,13 +62,7 @@ class Product extends Model implements Sellable
 
     public function getImageUrlAttribute(): ?string
     {
-        if (! $this->image_path) {
-            return null;
-        }
-
-        return str_starts_with($this->image_path, 'http')
-            ? $this->image_path
-            : Storage::url($this->image_path);
+        return ProductImage::url($this->image_path);
     }
 
     /* ---------------------------------------------------------------- */
