@@ -3,8 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
-use App\Models\Product;
-use App\Models\ProductVariant;
 use App\Models\User;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
@@ -21,7 +19,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->seedSettings();
-        $this->seedProducts($this->seedCategories());
+        $this->seedCategories();
+        $this->call(ProductSeeder::class);
         $this->seedStaff();
     }
 
@@ -44,7 +43,7 @@ class DatabaseSeeder extends Seeder
         ], 'branding');
     }
 
-    private function seedCategories(): array
+    private function seedCategories(): void
     {
         // Edit these in Admin -> Products -> Categories; the landing page follows.
         $rows = [
@@ -55,68 +54,12 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Seasonal', 'accent' => 'cherry', 'description' => 'Limited runs and holiday flavours.'],
         ];
 
-        $out = [];
         foreach ($rows as $i => $row) {
-            $out[$row['name']] = Category::updateOrCreate(
+            Category::updateOrCreate(
                 ['slug' => Str::slug($row['name'])],
                 $row + ['sort_order' => $i, 'is_active' => true],
             );
         }
-
-        return $out;
-    }
-
-    /**
-     * Graham Nest is the product; the flavours are variants, each carrying its
-     * own price and stock. Nothing sells at the product level once flavours
-     * exist — a customer always picks one.
-     */
-    private function seedProducts(array $categories): array
-    {
-        $product = Product::updateOrCreate(
-            ['sku' => 'GN-01'],
-            [
-                'category_id' => $categories['Graham']->id,
-                'name' => 'Graham Nest',
-                'slug' => 'graham-nest',
-                'description' => 'Buttery graham layers under a flavour of your choosing.',
-                'min_reseller_qty' => 10,
-                'is_active' => true,
-                'is_available' => true,
-                'is_featured' => true,
-                'available_to_resellers' => true,
-                'sort_order' => 0,
-            ],
-        );
-
-        $flavours = [
-            ['Cloudy Classic', 'GN-CL', 13, 10, 6, 'Airy whipped cream over a soft biscuit floor.'],
-            ['Misty Green', 'GN-MG', 16, 12, 7.5, 'Matcha cream settled over toasted graham.'],
-            ['Cocoa Cascade', 'GN-CO', 13, 10, 6, 'Dark cocoa pudding with a cascading ganache top.'],
-        ];
-
-        foreach ($flavours as $i => [$name, $sku, $retail, $wholesale, $cost, $desc]) {
-            ProductVariant::updateOrCreate(
-                ['sku' => $sku],
-                [
-                    'product_id' => $product->id,
-                    'name' => $name,
-                    'slug' => Str::slug($name),
-                    'description' => $desc,
-                    'retail_price' => $retail,
-                    'reseller_price' => $wholesale,
-                    'cost_price' => $cost,
-                    'stock' => 100,
-                    'tracks_stock' => true,
-                    'low_stock_threshold' => 20,
-                    'is_active' => true,
-                    'is_available' => true,
-                    'sort_order' => $i,
-                ],
-            );
-        }
-
-        return ['GN-01' => $product];
     }
 
     private function seedStaff(): array
