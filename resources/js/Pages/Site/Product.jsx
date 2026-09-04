@@ -61,13 +61,72 @@ export default function Product({ product, related }) {
                             <p className="mt-4 text-base leading-relaxed text-chocolate-500">{product.description}</p>
                         )}
 
+                        {/* Each flavour is priced and stocked on its own. */}
+                        {product.has_variants && (
+                            <div className="mt-8">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-chocolate-300">
+                                    Flavours
+                                </p>
+                                <ul className="mt-3 space-y-2">
+                                    {product.variants.map((variant) => (
+                                        <li
+                                            key={variant.id}
+                                            className={clsx(
+                                                'flex items-center justify-between gap-4 rounded-2xl border px-4 py-3',
+                                                variant.is_available
+                                                    ? 'border-cream-300 bg-vanilla'
+                                                    : 'border-cream-200 bg-cream-100/70 opacity-70',
+                                            )}
+                                        >
+                                            <span className="min-w-0">
+                                                <span className="block font-medium text-chocolate-700">
+                                                    {variant.name}
+                                                </span>
+                                                {variant.description && (
+                                                    <span className="block text-xs text-chocolate-400">
+                                                        {variant.description}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="shrink-0 text-right">
+                                                <span className="block font-display text-lg font-semibold text-chocolate-700">
+                                                    <Money value={variant.retail_price} decimals={0} />
+                                                </span>
+                                                <span
+                                                    className={clsx(
+                                                        'block text-[11px]',
+                                                        variant.is_available
+                                                            ? 'text-chocolate-400'
+                                                            : 'text-cherry',
+                                                    )}
+                                                >
+                                                    {variant.is_available
+                                                        ? variant.made_to_order
+                                                            ? 'Made to order'
+                                                            : 'Available'
+                                                        : 'Sold out'}
+                                                </span>
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         <div className="mt-8 grid gap-3 sm:grid-cols-2">
                             <div className="rounded-2xl border border-cream-300 bg-vanilla p-5">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-chocolate-300">
                                     Retail price
                                 </p>
                                 <p className="mt-1 font-display text-3xl font-semibold text-chocolate-700">
-                                    <Money value={product.retail_price} decimals={0} />
+                                    {product.has_variants && product.from_price !== product.to_price ? (
+                                        <>
+                                            <Money value={product.from_price} decimals={0} /> –{' '}
+                                            <Money value={product.to_price} decimals={0} />
+                                        </>
+                                    ) : (
+                                        <Money value={product.retail_price} decimals={0} />
+                                    )}
                                 </p>
                                 <p className="mt-1 text-xs text-chocolate-400">What your customers pay per cup.</p>
                             </div>

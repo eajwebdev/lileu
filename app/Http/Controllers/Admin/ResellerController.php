@@ -165,7 +165,20 @@ class ResellerController extends Controller
                     'outstanding' => $c->outstandingQuantity(),
                     'amount_due' => (float) $c->amount_due,
                 ]),
-            'catalog' => Product::active()->orderBy('name')->get(['id', 'name', 'sku', 'reseller_price', 'retail_price']),
+            'catalog' => Product::active()
+                ->with('variants')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Product $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'sku' => $p->sku,
+                    // Approval is per product, so a flavoured one quotes its
+                    // cheapest flavour rather than its own empty price.
+                    'reseller_price' => $p->lowestResellerPrice(),
+                    'retail_price' => $p->lowestRetailPrice(),
+                    'has_variants' => $p->hasVariants(),
+                ]),
             'assigned' => $reseller->products()->get()->map(fn (Product $p) => [
                 'product_id' => $p->id,
                 'custom_price' => $p->pivot->custom_price !== null ? (float) $p->pivot->custom_price : null,

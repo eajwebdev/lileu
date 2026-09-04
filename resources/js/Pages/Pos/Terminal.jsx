@@ -67,8 +67,8 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                 (p) =>
                     (!categoryId || p.category_id === categoryId) &&
                     (!term ||
-                        p.name.toLowerCase().includes(term.toLowerCase()) ||
-                        p.sku.toLowerCase().includes(term.toLowerCase())),
+                        p.label.toLowerCase().includes(term.toLowerCase()) ||
+                        (p.sku ?? '').toLowerCase().includes(term.toLowerCase())),
             ),
         [products, term, categoryId],
     );
@@ -77,11 +77,12 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
         () =>
             Object.entries(cart)
                 .filter(([, qty]) => qty > 0)
-                .map(([id, qty]) => {
-                    const product = products.find((p) => String(p.id) === id);
+                .map(([key, qty]) => {
+                    const product = products.find((p) => p.key === key);
 
-                    return { product, quantity: qty, lineTotal: (product?.price ?? 0) * qty };
-                }),
+                    return { product, quantity: qty, lineTotal: (product?.retail_price ?? 0) * qty };
+                })
+                .filter((l) => l.product),
         [cart, products],
     );
 
@@ -102,8 +103,8 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
             const maximum = !product.is_available ? 0 : product.tracks_stock ? product.stock : 100000;
             const clamped = Math.min(maximum, Math.max(0, qty));
 
-            if (clamped === 0) delete next[product.id];
-            else next[product.id] = clamped;
+            if (clamped === 0) delete next[product.key];
+            else next[product.key] = clamped;
 
             return next;
         });
@@ -119,7 +120,11 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
         form.transform((data) => ({
             ...data,
             amount_tendered: data.amount_tendered === '' ? total : data.amount_tendered,
-            items: lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+            items: lines.map((l) => ({
+                product_id: l.product.product_id,
+                product_variant_id: l.product.variant_id,
+                quantity: l.quantity,
+            })),
         }));
 
         form.post(route('pos.sales.store'), { onSuccess: () => clearCart() });
@@ -233,15 +238,15 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
 
                     <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 pb-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                         {visible.map((product) => {
-                            const qty = cart[product.id] ?? 0;
+                            const qty = cart[product.key] ?? 0;
 
                             return (
                                 <button
-                                    key={product.id}
+                                    key={product.key}
                                     type="button"
                                     onClick={() => setQty(product, qty + 1)}
                                     disabled={!product.is_available || (product.tracks_stock && product.stock === 0)}
-                                    aria-label={`Add ${product.name} to cart`}
+                                    aria-label={`Add ${product.label} to cart`}
                                     className={clsx(
                                         'relative flex flex-col overflow-hidden rounded-2xl border bg-vanilla text-left shadow-soft transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-55',
                                         qty > 0 ? 'border-blush-400 ring-2 ring-blush-200' : 'border-cream-300/70',
@@ -258,11 +263,17 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                     )}
 
                                     <div className="p-2.5">
+                                        {/* Flavour leads; the product it belongs to sits above it. */}
+                                        {product.variant_name && (
+                                            <p className="truncate text-[11px] uppercase tracking-wide text-chocolate-300">
+                                                {product.name}
+                                            </p>
+                                        )}
                                         <p className="line-clamp-2 text-sm font-semibold leading-tight text-chocolate-700">
-                                            {product.name}
+                                            {product.variant_name ?? product.name}
                                         </p>
                                         <p className="mt-1 font-display text-base font-semibold text-chocolate-700">
-                                            {peso(product.price, { decimals: 0 })}
+                                            {peso(product.retail_price, { decimals: 0 })}
                                         </p>
                                         <p
                                             className={clsx(
@@ -325,13 +336,13 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                         ) : (
                             <ul className="divide-y divide-cream-200">
                                 {lines.map((line) => (
-                                    <li key={line.product.id} className="flex min-h-14 items-center gap-2 py-2">
+                                    <li key={line.product.key} className="flex min-h-14 items-center gap-2 py-2">
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-sm font-medium text-chocolate-700">
-                                                {line.product.name}
+                                                {line.product.label}
                                             </p>
                                             <p className="text-xs text-chocolate-400">
-                                                {peso(line.product.price)} each
+                                                {peso(line.product.retail_price)} each
                                             </p>
                                         </div>
 
@@ -340,7 +351,7 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                                 type="button"
                                                 onClick={() => setQty(line.product, line.quantity - 1)}
                                                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-cream-300 text-chocolate-600 transition hover:bg-cream-100"
-                                                aria-label={`Decrease ${line.product.name}`}
+                                                aria-label={`Decrease ${line.product.label}`}
                                             >
                                                 <Minus className="h-4 w-4" />
                                             </button>
@@ -356,7 +367,7 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                                         line.quantity >= line.product.stock)
                                                 }
                                                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-cream-300 text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
-                                                aria-label={`Increase ${line.product.name}`}
+                                                aria-label={`Increase ${line.product.label}`}
                                             >
                                                 <Plus className="h-4 w-4" />
                                             </button>
@@ -370,7 +381,7 @@ export default function Terminal({ products, categories, todayTotal, todayCount 
                                             type="button"
                                             onClick={() => setQty(line.product, 0)}
                                             className="rounded-lg p-1 text-chocolate-300 transition hover:bg-cherry/10 hover:text-cherry"
-                                            aria-label={`Remove ${line.product.name}`}
+                                            aria-label={`Remove ${line.product.label}`}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>

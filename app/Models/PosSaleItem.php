@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Concerns\NamesASoldItem;
 use Illuminate\Database\Eloquent\Model;
 
 class PosSaleItem extends Model
 {
+    use NamesASoldItem;
+
     protected $fillable = [
-        'pos_sale_id', 'product_id', 'product_name', 'quantity', 'unit_price', 'line_total',
+        'pos_sale_id', 'product_id', 'product_variant_id', 'product_name', 'variant_name', 'quantity', 'unit_price', 'line_total',
     ];
 
     protected $casts = [

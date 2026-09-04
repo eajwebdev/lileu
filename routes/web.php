@@ -90,6 +90,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::patch('/products/{product}/availability', [Admin\ProductController::class, 'availability'])->name('products.availability');
     Route::delete('/products/{product}', [Admin\ProductController::class, 'destroy'])->name('products.destroy');
 
+    Route::post('/products/{product}/variants', [Admin\ProductVariantController::class, 'store'])->name('products.variants.store');
+    Route::put('/products/{product}/variants/{variant}', [Admin\ProductVariantController::class, 'update'])->name('products.variants.update');
+    Route::patch('/products/{product}/variants/{variant}/availability', [Admin\ProductVariantController::class, 'availability'])->name('products.variants.availability');
+    Route::delete('/products/{product}/variants/{variant}', [Admin\ProductVariantController::class, 'destroy'])->name('products.variants.destroy');
+
     Route::post('/categories', [Admin\CategoryController::class, 'store'])->name('categories.store');
     Route::put('/categories/{category}', [Admin\CategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{category}', [Admin\CategoryController::class, 'destroy'])->name('categories.destroy');

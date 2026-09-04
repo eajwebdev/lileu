@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Portal;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Reseller;
 use App\Models\ResellerOrder;
 use App\Services\OrderService;
+use App\Support\Catalog;
 use App\Services\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,6 +67,7 @@ class OrderController extends Controller
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
             'fulfillment_type' => ['required', 'in:pickup,delivery'],
             'delivery_address' => ['nullable', 'required_if:fulfillment_type,delivery', 'string', 'max:500'],
@@ -73,10 +76,15 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // A reseller may only order what admin has approved for them.
-        $allowed = $this->orderableProducts($reseller)->pluck('id')->all();
+        // A reseller may only order what admin has approved for them, down to
+        // the individual flavour.
+        $allowed = $this->orderableProducts($reseller)->pluck('key')->all();
         $lines = collect($data['items'])
-            ->filter(fn ($line) => in_array((int) $line['product_id'], $allowed, true))
+            ->filter(fn ($line) => in_array(
+                $line['product_id'].':'.($line['product_variant_id'] ?? 0),
+                $allowed,
+                true,
+            ))
             ->values()
             ->all();
 
@@ -118,7 +126,7 @@ class OrderController extends Controller
                 'balance' => (float) $order->balance,
                 'due_now' => $order->amountDueNow(),
                 'items' => $order->items->map(fn ($i) => [
-                    'name' => $i->product_name,
+                    'name' => $i->display_name,
                     'quantity' => $i->quantity,
                     'unit_price' => (float) $i->unit_price,
                     'line_total' => (float) $i->line_total,
@@ -153,33 +161,46 @@ class OrderController extends Controller
         return redirect()->route('pay.show', $payment->receipt_number);
     }
 
+    /**
+     * What this seller may put in a basket, one row per sellable — a product
+     * with flavours contributes a row for each of them.
+     */
     private function orderableProducts(Reseller $reseller)
     {
         $curated = $reseller->products()
             ->wherePivot('is_approved', true)
             ->where('products.is_active', true)
+            ->with(['category:id,name,slug,accent', 'variants'])
             ->get();
 
         // No curated list yet? Fall back to everything opened to resellers, so a
         // freshly approved partner is never staring at an empty catalog.
         $products = $curated->isNotEmpty()
             ? $curated->where('is_available', true)->values()
-            : Product::active()->where('is_available', true)->where('available_to_resellers', true)->get();
+            : Product::active()
+                ->where('is_available', true)
+                ->where('available_to_resellers', true)
+                ->with(['category:id,name,slug,accent', 'variants'])
+                ->get();
 
-        return $products->map(fn (Product $p) => [
-            'id' => $p->id,
-            'name' => $p->name,
-            'sku' => $p->sku,
-            'image_url' => $p->image_url,
-            'description' => $p->description,
-            'unit_price' => $this->orders->priceFor($reseller, $p),
-            'retail_price' => (float) $p->retail_price,
-            'min_qty' => $p->min_reseller_qty,
-            'in_stock' => $p->isAvailable(),
-            'made_to_order' => ! $p->tracksStock(),
-            'tracks_stock' => $p->tracksStock(),
-            'stock' => $p->stock,
-        ])->values();
+        return collect(Catalog::sellables($products))
+            ->filter(fn (array $row) => $row['is_available'])
+            ->map(function (array $row) use ($reseller) {
+                // The negotiated rate is struck per product, so it applies to
+                // whichever flavour the seller picks.
+                $row['unit_price'] = $this->orders->priceFor(
+                    $reseller,
+                    $row['variant_id']
+                        ? ProductVariant::find($row['variant_id'])
+                        : Product::find($row['product_id']),
+                );
+                $row['min_qty'] = $row['min_reseller_qty'];
+                $row['in_stock'] = ! $row['tracks_stock'] || $row['stock'] > 0;
+                $row['made_to_order'] = ! $row['tracks_stock'];
+
+                return $row;
+            })
+            ->values();
     }
 
     private function authorizeOrder(Request $request, ResellerOrder $order): void

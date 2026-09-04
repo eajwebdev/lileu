@@ -24,7 +24,7 @@ export default function Create({ products, reseller }) {
             products.filter(
                 (p) =>
                     !term ||
-                    p.name.toLowerCase().includes(term.toLowerCase()) ||
+                    p.label.toLowerCase().includes(term.toLowerCase()) ||
                     p.sku.toLowerCase().includes(term.toLowerCase()),
             ),
         [products, term],
@@ -35,10 +35,11 @@ export default function Create({ products, reseller }) {
             Object.entries(cart)
                 .filter(([, qty]) => qty > 0)
                 .map(([id, qty]) => {
-                    const product = products.find((p) => String(p.id) === id);
+                    const product = products.find((p) => p.key === id);
 
                     return { product, quantity: qty, lineTotal: (product?.unit_price ?? 0) * qty };
-                }),
+                })
+                .filter((l) => l.product),
         [cart, products],
     );
 
@@ -52,8 +53,8 @@ export default function Create({ products, reseller }) {
             const next = { ...prev };
             const clamped = Math.max(0, qty);
 
-            if (clamped === 0) delete next[product.id];
-            else next[product.id] = clamped;
+            if (clamped === 0) delete next[product.key];
+            else next[product.key] = clamped;
 
             return next;
         });
@@ -64,7 +65,11 @@ export default function Create({ products, reseller }) {
         // The cart lives in local state; fold it into the payload at submit time.
         transform((form) => ({
             ...form,
-            items: lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+            items: lines.map((l) => ({
+                product_id: l.product.product_id,
+                product_variant_id: l.product.variant_id,
+                quantity: l.quantity,
+            })),
         }));
 
         post(route('portal.orders.store'));
@@ -94,12 +99,12 @@ export default function Create({ products, reseller }) {
                     ) : (
                         <div className="grid gap-3 sm:grid-cols-2">
                             {visible.map((product) => {
-                                const qty = cart[product.id] ?? 0;
+                                const qty = cart[product.key] ?? 0;
                                 const selected = qty > 0;
 
                                 return (
                                     <div
-                                        key={product.id}
+                                        key={product.key}
                                         className={clsx(
                                             'flex gap-3 rounded-2xl border p-3 transition',
                                             selected
@@ -113,7 +118,7 @@ export default function Create({ products, reseller }) {
 
                                         <div className="flex min-w-0 flex-1 flex-col">
                                             <p className="truncate font-semibold text-chocolate-700">
-                                                {product.name}
+                                                {product.label}
                                             </p>
                                             <p className="text-xs text-chocolate-400">
                                                 <Money value={product.unit_price} /> · retail{' '}
@@ -135,7 +140,7 @@ export default function Create({ products, reseller }) {
                                                     onClick={() => setQty(product, qty - 1)}
                                                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 disabled:opacity-40"
                                                     disabled={qty === 0}
-                                                    aria-label={`Remove one ${product.name}`}
+                                                    aria-label={`Remove one ${product.label}`}
                                                 >
                                                     <Minus className="h-4 w-4" />
                                                 </button>
@@ -150,7 +155,7 @@ export default function Create({ products, reseller }) {
                                                     type="button"
                                                     onClick={() => setQty(product, qty === 0 ? product.min_qty : qty + 1)}
                                                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100"
-                                                    aria-label={`Add one ${product.name}`}
+                                                    aria-label={`Add one ${product.label}`}
                                                 >
                                                     <Plus className="h-4 w-4" />
                                                 </button>
@@ -178,10 +183,10 @@ export default function Create({ products, reseller }) {
                         ) : (
                             <ul className="mt-3 divide-y divide-cream-200">
                                 {lines.map((line) => (
-                                    <li key={line.product.id} className="flex items-center gap-3 py-2.5">
+                                    <li key={line.product.key} className="flex items-center gap-3 py-2.5">
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-sm font-medium text-chocolate-700">
-                                                {line.product.name}
+                                                {line.product.label}
                                             </p>
                                             <p className="text-xs text-chocolate-400">
                                                 {line.quantity} × <Money value={line.product.unit_price} />
@@ -194,7 +199,7 @@ export default function Create({ products, reseller }) {
                                             type="button"
                                             onClick={() => setQty(line.product, 0)}
                                             className="rounded-lg p-1.5 text-chocolate-300 transition hover:bg-cherry/10 hover:text-cherry"
-                                            aria-label={`Remove ${line.product.name}`}
+                                            aria-label={`Remove ${line.product.label}`}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>

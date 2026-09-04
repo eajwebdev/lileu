@@ -87,7 +87,7 @@ class OrderController extends Controller
                 'amount_paid' => (float) $order->amount_paid,
                 'balance' => (float) $order->balance,
                 'items' => $order->items->map(fn ($i) => [
-                    'name' => $i->product_name,
+                    'name' => $i->display_name,
                     'sku' => $i->sku,
                     'quantity' => $i->quantity,
                     'unit_price' => (float) $i->unit_price,

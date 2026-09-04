@@ -82,7 +82,7 @@ class ReceiptService
                 'phone' => $order->reseller->phone,
             ],
             'items' => $order->items->map(fn ($item) => [
-                'name' => $item->product_name,
+                'name' => $item->display_name,
                 'quantity' => $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,

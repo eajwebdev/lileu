@@ -6,6 +6,7 @@ use App\Models\Consignment;
 use App\Models\ConsignmentItem;
 use App\Models\ConsignmentSettlement;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Reseller;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -19,82 +20,85 @@ use Illuminate\Support\Facades\DB;
  */
 class ConsignmentService
 {
-    public function __construct(private NumberGenerator $numbers) {}
+    public function __construct(
+        private NumberGenerator $numbers,
+        private SellableResolver $sellables,
+    ) {}
 
     /**
-     * @param  array<int, array{product_id:int, quantity:int, unit_price?:float}>  $lines
+     * @param  array<int, array{product_id:int, product_variant_id?:int|null, quantity:int, unit_price?:float}>  $lines
      */
     public function issue(Reseller $seller, array $lines, array $attributes, ?User $by = null): Consignment
     {
         return DB::transaction(function () use ($seller, $lines, $attributes, $by) {
             abort_unless($seller->isApproved(), 422, 'Only an approved seller can receive consigned stock.');
 
-            $productIds = collect($lines)
-                ->pluck('product_id')
-                ->map(fn ($id) => (int) $id)
-                ->filter();
+            // A flavour is its own line, so one product may appear more than
+            // once - but the same flavour twice would double-count stock.
+            $keys = collect($lines)->map(fn ($line) => $this->sellables->keyForLine($line));
 
             abort_if(
-                $productIds->duplicates()->isNotEmpty(),
+                $keys->duplicates()->isNotEmpty(),
                 422,
-                'Each product can appear only once in a consignment.',
+                'Each item can appear only once in a consignment.',
             );
 
             // Keep the stock check and deduction atomic when two people issue stock at once.
-            $products = Product::whereIn('id', $productIds)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
+            $sellables = $this->sellables->resolve($lines, lock: true);
 
             $rows = [];
             $issuedQty = 0;
             $issuedValue = 0.0;
 
             foreach ($lines as $line) {
-                $product = $products->get((int) $line['product_id']);
+                $sellable = $sellables->get($this->sellables->keyForLine($line));
                 $quantity = (int) ($line['quantity'] ?? 0);
 
-                if (! $product || $quantity < 1) {
+                if (! $sellable || $quantity < 1) {
                     continue;
                 }
 
+                $label = $sellable->sellableLabel();
+
                 abort_unless(
-                    $product->isManuallyAvailable(),
+                    $sellable->isManuallyAvailable(),
                     422,
-                    "{$product->name} is currently unavailable.",
+                    "{$label} is currently unavailable.",
                 );
 
+                $onHand = $sellable->availableStock();
+
                 abort_if(
-                    $product->tracksStock() && $quantity > $product->stock,
+                    $sellable->tracksStock() && $quantity > $onHand,
                     422,
-                    "{$product->name}: only {$product->stock} pcs are available, but {$quantity} were requested.",
+                    "{$label}: only {$onHand} pcs are available, but {$quantity} were requested.",
                 );
 
                 // Default to the wholesale rate: the seller keeps retail minus this.
                 $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== ''
                     ? (float) $line['unit_price']
-                    : (float) $product->reseller_price;
+                    : $sellable->resellerPrice();
 
                 $rows[] = [
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
-                    'sku' => $product->sku,
+                    'product_id' => $sellable->sellableProductId(),
+                    'product_variant_id' => $sellable->sellableVariantId(),
+                    'product_name' => $sellable->sellableProductName(),
+                    'variant_name' => $sellable->sellableVariantName(),
+                    'sku' => $sellable->sellableSku(),
                     'unit_price' => $unitPrice,
-                    'retail_price' => (float) $product->retail_price,
-                    'cost_price' => (float) $product->cost_price,
-                    'tracks_stock' => $product->tracksStock(),
+                    'retail_price' => $sellable->retailPrice(),
+                    'cost_price' => $sellable->costPrice(),
+                    'tracks_stock' => $sellable->tracksStock(),
                     'quantity_issued' => $quantity,
                 ];
 
                 $issuedQty += $quantity;
                 $issuedValue += $unitPrice * $quantity;
 
-                if ($product->tracksStock()) {
-                    $product->decrement('stock', $quantity);
-                }
+                $sellable->decrementStock($quantity);
             }
 
-            abort_if($rows === [], 422, 'A consignment needs at least one product.');
+            abort_if($rows === [], 422, 'A consignment needs at least one item.');
 
             $consignment = Consignment::create([
                 'consignment_number' => $this->numbers->consignmentNumber(),
@@ -173,7 +177,9 @@ class ConsignmentService
                 $rows[] = [
                     'consignment_item_id' => $item->id,
                     'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
                     'product_name' => $item->product_name,
+                    'variant_name' => $item->variant_name,
                     'quantity_sold' => $sold,
                     'quantity_returned' => $returned,
                     'quantity_expired' => $expired,
@@ -184,9 +190,14 @@ class ConsignmentService
                     'loss_value' => $lineLoss,
                 ];
 
-                // Only good stock earns its place back on the shelf.
-                if ($returned > 0 && $item->tracks_stock && $item->product_id) {
-                    Product::whereKey($item->product_id)->increment('stock', $returned);
+                // Only good stock earns its place back on the shelf, and it
+                // returns to the flavour it left as.
+                if ($returned > 0 && $item->tracks_stock) {
+                    if ($item->product_variant_id) {
+                        ProductVariant::whereKey($item->product_variant_id)->increment('stock', $returned);
+                    } elseif ($item->product_id) {
+                        Product::whereKey($item->product_id)->increment('stock', $returned);
+                    }
                 }
             }
 
@@ -301,7 +312,15 @@ class ConsignmentService
 
         return DB::transaction(function () use ($consignment) {
             foreach ($consignment->items()->get() as $item) {
-                if ($item->outstanding() > 0 && $item->tracks_stock && $item->product_id) {
+                if ($item->outstanding() < 1 || ! $item->tracks_stock) {
+                    continue;
+                }
+
+                // Back to the flavour it left as, never to the parent product.
+                if ($item->product_variant_id) {
+                    ProductVariant::whereKey($item->product_variant_id)
+                        ->increment('stock', $item->outstanding());
+                } elseif ($item->product_id) {
                     Product::whereKey($item->product_id)->increment('stock', $item->outstanding());
                 }
             }

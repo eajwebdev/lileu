@@ -7,6 +7,8 @@ use App\Models\Category;
 use App\Models\PosSale;
 use App\Models\Product;
 use App\Services\NumberGenerator;
+use App\Services\SellableResolver;
+use App\Support\Catalog;
 use App\Support\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,29 +20,32 @@ use Inertia\Response;
 
 class TerminalController extends Controller
 {
-    public function __construct(private NumberGenerator $numbers) {}
+    public function __construct(
+        private NumberGenerator $numbers,
+        private SellableResolver $sellables,
+    ) {}
+
+    /**
+     * 'distinct' cannot express this: the same product twice is fine when the
+     * flavours differ, but the same flavour twice would double-count stock.
+     */
+    private function assertNoRepeatedLines(array $items): void
+    {
+        $keys = collect($items)->map(fn ($line) => $this->sellables->keyForLine($line));
+
+        if ($keys->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'items' => 'The same item was added twice — combine it into one line.',
+            ]);
+        }
+    }
 
     public function index(): Response
     {
         return Inertia::render('Pos/Terminal', [
-            'products' => Product::active()
-                ->with('category:id,name,accent')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get()
-                ->map(fn (Product $p) => [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'sku' => $p->sku,
-                    'image_url' => $p->image_url,
-                    'price' => (float) $p->retail_price,
-                    'stock' => $p->stock,
-                    'tracks_stock' => $p->tracksStock(),
-                    'is_available' => $p->isManuallyAvailable(),
-                    'category_id' => $p->category_id,
-                    'category' => $p->category?->name,
-                    'accent' => $p->category?->accent ?? 'blush',
-                ]),
+            // One tile per sellable: a flavour is tapped directly rather than
+            // hidden behind the product it belongs to.
+            'products' => Catalog::sellables(Catalog::activeProducts()),
             'categories' => Category::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'accent']),
             'todayTotal' => round((float) PosSale::where('status', 'completed')
                 ->whereDate('created_at', today())->sum('total'), 2),
@@ -52,7 +57,8 @@ class TerminalController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'method' => ['required', 'in:cash,gcash,qrph,card'],
@@ -61,51 +67,56 @@ class TerminalController extends Controller
         ]);
 
         $sale = DB::transaction(function () use ($data, $request) {
-            $products = Product::whereIn('id', collect($data['items'])->pluck('product_id'))
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
+            // A flavour is its own line on the receipt, so the same product
+            // may legitimately appear twice under two flavours.
+            $this->assertNoRepeatedLines($data['items']);
+
+            $sellables = $this->sellables->resolve($data['items'], lock: true);
 
             $subtotal = 0.0;
             $rows = [];
 
             foreach ($data['items'] as $line) {
-                $product = $products->get((int) $line['product_id']);
+                $sellable = $sellables->get($this->sellables->keyForLine($line));
 
-                if (! $product) {
+                if (! $sellable) {
                     throw ValidationException::withMessages([
                         'items' => 'One of the selected products is no longer available.',
                     ]);
                 }
 
                 $qty = (int) $line['quantity'];
+                $label = $sellable->sellableLabel();
 
-                if (! $product->isManuallyAvailable()) {
+                if (! $sellable->isManuallyAvailable()) {
                     throw ValidationException::withMessages([
-                        'items' => "{$product->name} is currently unavailable.",
+                        'items' => "{$label} is currently unavailable.",
                     ]);
                 }
 
-                if ($product->tracksStock() && $qty > $product->stock) {
+                if ($sellable->tracksStock() && $qty > $sellable->availableStock()) {
+                    $have = $sellable->availableStock();
+
                     throw ValidationException::withMessages([
-                        'items' => "{$product->name}: only {$product->stock} pcs are currently in stock.",
+                        'items' => "{$label}: only {$have} pcs are currently in stock.",
                     ]);
                 }
 
-                $lineTotal = round((float) $product->retail_price * $qty, 2);
+                $unitPrice = $sellable->retailPrice();
+                $lineTotal = round($unitPrice * $qty, 2);
                 $subtotal += $lineTotal;
 
                 $rows[] = [
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_id' => $sellable->sellableProductId(),
+                    'product_variant_id' => $sellable->sellableVariantId(),
+                    'product_name' => $sellable->sellableProductName(),
+                    'variant_name' => $sellable->sellableVariantName(),
                     'quantity' => $qty,
-                    'unit_price' => (float) $product->retail_price,
+                    'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
                 ];
 
-                if ($product->tracksStock()) {
-                    $product->decrement('stock', $qty);
-                }
+                $sellable->decrementStock($qty);
             }
 
             $discount = round((float) ($data['discount'] ?? 0), 2);

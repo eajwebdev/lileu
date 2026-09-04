@@ -69,13 +69,27 @@ trait CreatesShopData
         ]);
     }
 
-    protected function placeOrder(Reseller $seller, ?Product $product = null, int $quantity = 20): ResellerOrder
+    /**
+     * A basket line for a product, naming a flavour when the product has any —
+     * the same choice a real order has to make.
+     */
+    protected function line(?Product $product, int $quantity): array
     {
         $product ??= Product::firstOrFail();
+        $variant = $product->activeVariants()->first();
 
+        return [
+            'product_id' => $product->id,
+            'product_variant_id' => $variant?->id,
+            'quantity' => $quantity,
+        ];
+    }
+
+    protected function placeOrder(Reseller $seller, ?Product $product = null, int $quantity = 20): ResellerOrder
+    {
         return app(OrderService::class)->placeResellerOrder(
             $seller,
-            [['product_id' => $product->id, 'quantity' => $quantity]],
+            [$this->line($product, $quantity)],
             ['fulfillment_type' => 'pickup', 'date_needed' => now()->addDays(3)->toDateString()],
         );
     }
@@ -90,11 +104,9 @@ trait CreatesShopData
 
     protected function issueConsignment(Reseller $seller, ?Product $product = null, int $quantity = 10): Consignment
     {
-        $product ??= Product::firstOrFail();
-
         return app(ConsignmentService::class)->issue(
             $seller,
-            [['product_id' => $product->id, 'quantity' => $quantity]],
+            [$this->line($product, $quantity)],
             ['issued_on' => now()->toDateString()],
         );
     }

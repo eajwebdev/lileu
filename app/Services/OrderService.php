@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\Sellable;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Reseller;
@@ -10,38 +11,40 @@ use Illuminate\Support\Facades\DB;
 
 class OrderService
 {
-    public function __construct(private NumberGenerator $numbers) {}
+    public function __construct(
+        private NumberGenerator $numbers,
+        private SellableResolver $sellables,
+    ) {}
 
     /**
-     * @param  array<int, array{product_id:int, quantity:int}>  $lines
+     * @param  array<int, array{product_id:int, product_variant_id?:int|null, quantity:int}>  $lines
      */
     public function placeResellerOrder(Reseller $reseller, array $lines, array $attributes): ResellerOrder
     {
         return DB::transaction(function () use ($reseller, $lines, $attributes) {
-            $products = Product::query()
-                ->whereIn('id', collect($lines)->pluck('product_id'))
-                ->get()
-                ->keyBy('id');
+            $sellables = $this->sellables->resolve($lines);
 
             $subtotal = 0.0;
             $rows = [];
 
             foreach ($lines as $line) {
-                $product = $products->get((int) $line['product_id']);
+                $sellable = $sellables->get($this->sellables->keyForLine($line));
 
-                if (! $product || ! $product->is_active) {
+                if (! $sellable || ! $this->isOrderable($sellable)) {
                     continue;
                 }
 
                 $quantity = max(1, (int) $line['quantity']);
-                $unitPrice = $this->priceFor($reseller, $product);
+                $unitPrice = $this->priceFor($reseller, $sellable);
                 $lineTotal = round($unitPrice * $quantity, 2);
                 $subtotal += $lineTotal;
 
                 $rows[] = [
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
-                    'sku' => $product->sku,
+                    'product_id' => $sellable->sellableProductId(),
+                    'product_variant_id' => $sellable->sellableVariantId(),
+                    'product_name' => $sellable->sellableProductName(),
+                    'variant_name' => $sellable->sellableVariantName(),
+                    'sku' => $sellable->sellableSku(),
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
@@ -82,16 +85,31 @@ class OrderService
         });
     }
 
-    /** Negotiated pivot price beats the standard reseller price. */
-    public function priceFor(Reseller $reseller, Product $product): float
+    /**
+     * Negotiated pivot price beats the standard reseller price. The deal is
+     * struck per product, so every flavour of it inherits the same rate.
+     */
+    public function priceFor(Reseller $reseller, Sellable $sellable): float
     {
-        $pivot = $reseller->products()->where('products.id', $product->id)->first()?->pivot;
+        $pivot = $reseller->products()
+            ->where('products.id', $sellable->sellableProductId())
+            ->first()?->pivot;
 
         if ($pivot && $pivot->custom_price !== null) {
             return (float) $pivot->custom_price;
         }
 
-        return (float) $product->reseller_price;
+        return $sellable->resellerPrice();
+    }
+
+    /** A dormant product, or a flavour of one, cannot be ordered. */
+    private function isOrderable(Sellable $sellable): bool
+    {
+        $product = $sellable instanceof Product
+            ? $sellable
+            : Product::find($sellable->sellableProductId());
+
+        return (bool) $product?->is_active;
     }
 
     /**

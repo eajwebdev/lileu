@@ -2,13 +2,22 @@
 
 namespace App\Models;
 
+use App\Contracts\Sellable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
-class Product extends Model
+/**
+ * A product either stands alone or comes in flavours.
+ *
+ * Standing alone, it carries its own price and stock and is sellable itself.
+ * With variants, price and stock live on each flavour instead — the columns
+ * here stop being the truth, and only a variant can be sold.
+ */
+class Product extends Model implements Sellable
 {
     protected $fillable = [
         'category_id', 'name', 'slug', 'sku', 'description', 'image_path',
@@ -34,6 +43,16 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function activeVariants(): HasMany
+    {
+        return $this->variants()->where('is_active', true);
+    }
+
     public function resellers(): BelongsToMany
     {
         return $this->belongsToMany(Reseller::class)
@@ -52,8 +71,73 @@ class Product extends Model
             : Storage::url($this->image_path);
     }
 
+    /* ---------------------------------------------------------------- */
+    /* Variants                                                          */
+    /* ---------------------------------------------------------------- */
+
+    public function hasVariants(): bool
+    {
+        return $this->relationLoaded('variants')
+            ? $this->variants->isNotEmpty()
+            : $this->variants()->exists();
+    }
+
+    /** The flavours a customer can actually pick right now. */
+    public function sellableVariants()
+    {
+        $variants = $this->relationLoaded('variants')
+            ? $this->variants
+            : $this->variants()->get();
+
+        return $variants->filter(fn (ProductVariant $v) => $v->is_active);
+    }
+
+    /** Stock is the sum of the flavours once there are any. */
+    public function totalStock(): int
+    {
+        if (! $this->hasVariants()) {
+            return (int) $this->stock;
+        }
+
+        return (int) $this->sellableVariants()
+            ->filter(fn (ProductVariant $v) => $v->tracksStock())
+            ->sum('stock');
+    }
+
+    /** The cheapest sellable flavour, which is what "from ₱x" shows. */
+    public function lowestRetailPrice(): float
+    {
+        if (! $this->hasVariants()) {
+            return (float) $this->retail_price;
+        }
+
+        return (float) ($this->sellableVariants()->min('retail_price') ?? 0);
+    }
+
+    public function highestRetailPrice(): float
+    {
+        if (! $this->hasVariants()) {
+            return (float) $this->retail_price;
+        }
+
+        return (float) ($this->sellableVariants()->max('retail_price') ?? 0);
+    }
+
+    public function lowestResellerPrice(): float
+    {
+        if (! $this->hasVariants()) {
+            return (float) $this->reseller_price;
+        }
+
+        return (float) ($this->sellableVariants()->min('reseller_price') ?? 0);
+    }
+
     public function getIsLowStockAttribute(): bool
     {
+        if ($this->hasVariants()) {
+            return $this->sellableVariants()->contains(fn (ProductVariant $v) => $v->is_low_stock);
+        }
+
         return $this->tracksStock() && $this->stock <= $this->low_stock_threshold;
     }
 
@@ -62,9 +146,18 @@ class Product extends Model
         return (bool) ($this->tracks_stock ?? true);
     }
 
+    /** In stock and switched on — for a product with flavours, if any flavour is. */
     public function isAvailable(): bool
     {
-        return $this->isManuallyAvailable() && (! $this->tracksStock() || $this->stock > 0);
+        if (! $this->isManuallyAvailable()) {
+            return false;
+        }
+
+        if ($this->hasVariants()) {
+            return $this->sellableVariants()->contains(fn (ProductVariant $v) => $v->isAvailable());
+        }
+
+        return ! $this->tracksStock() || $this->stock > 0;
     }
 
     public function isManuallyAvailable(): bool
@@ -75,5 +168,73 @@ class Product extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Sellable — only meaningful when the product has no variants       */
+    /* ---------------------------------------------------------------- */
+
+    public function sellableProductId(): int
+    {
+        return $this->id;
+    }
+
+    public function sellableVariantId(): ?int
+    {
+        return null;
+    }
+
+    public function sellableProductName(): string
+    {
+        return $this->name;
+    }
+
+    public function sellableVariantName(): ?string
+    {
+        return null;
+    }
+
+    public function sellableLabel(): string
+    {
+        return $this->name;
+    }
+
+    public function sellableSku(): ?string
+    {
+        return $this->sku;
+    }
+
+    public function retailPrice(): float
+    {
+        return (float) $this->retail_price;
+    }
+
+    public function resellerPrice(): float
+    {
+        return (float) $this->reseller_price;
+    }
+
+    public function costPrice(): float
+    {
+        return (float) $this->cost_price;
+    }
+
+    public function availableStock(): int
+    {
+        return (int) $this->stock;
+    }
+
+    public function decrementStock(int $quantity): void
+    {
+        if ($this->tracksStock()) {
+            $this->decrement('stock', $quantity);
+        }
+    }
+
+    public function incrementStock(int $quantity): void
+    {
+        if ($this->tracksStock()) {
+            $this->increment('stock', $quantity);
+        }
     }
 }

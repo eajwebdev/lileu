@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Support\Catalog;
 use App\Models\Reseller;
 use App\Support\Settings;
 use Inertia\Inertia;
@@ -16,7 +17,7 @@ class LandingController extends Controller
     {
         $products = Product::query()
             ->active()
-            ->with('category:id,name,slug,accent')
+            ->with(['category:id,name,slug,accent', 'variants'])
             ->orderByDesc('is_featured')
             ->orderBy('sort_order')
             ->limit(8)
@@ -29,7 +30,7 @@ class LandingController extends Controller
             'categories' => Category::query()
                 ->where('is_active', true)
                 ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
-                ->with(['products' => fn ($q) => $q->where('is_active', true)
+                ->with(['products' => fn ($q) => $q->where('is_active', true)->with('variants')
                     ->orderByDesc('is_featured')
                     ->limit(3)])
                 ->orderBy('sort_order')
@@ -41,7 +42,7 @@ class LandingController extends Controller
                     'description' => $c->description,
                     'accent' => $c->accent,
                     'products_count' => $c->products_count,
-                    'from_price' => (float) ($c->products->min('retail_price') ?? 0),
+                    'from_price' => (float) ($c->products->min(fn (Product $p) => $p->lowestRetailPrice()) ?? 0),
                     'preview' => $c->products->map(fn (Product $p) => [
                         'name' => $p->name,
                         'image_url' => $p->image_url,
@@ -55,21 +56,9 @@ class LandingController extends Controller
         ]);
     }
 
+    /** A product card, priced from its cheapest flavour when it has any. */
     private function card(Product $product): array
     {
-        return [
-            'id' => $product->id,
-            'name' => $product->name,
-            'slug' => $product->slug,
-            'description' => $product->description,
-            'image_url' => $product->image_url,
-            'retail_price' => (float) $product->retail_price,
-            'reseller_price' => (float) $product->reseller_price,
-            'in_stock' => $product->isAvailable(),
-            'manually_unavailable' => ! $product->isManuallyAvailable(),
-            'made_to_order' => ! $product->tracksStock(),
-            'is_featured' => $product->is_featured,
-            'category' => $product->category?->only(['name', 'slug', 'accent']),
-        ];
+        return Catalog::grouped([$product])[0];
     }
 }

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
@@ -65,21 +66,40 @@ class DatabaseSeeder extends Seeder
         return $out;
     }
 
+    /**
+     * Graham Nest is the product; the flavours are variants, each carrying its
+     * own price and stock. Nothing sells at the product level once flavours
+     * exist — a customer always picks one.
+     */
     private function seedProducts(array $categories): array
     {
-        $rows = [
-            ['Graham Nest', 'Graham', 'GN-01', 12, 9, 5.5, 'Buttery graham layers, sweet cream and a cherry crown.', true],
-            ['Cloudy Classic', 'Cream Cups', 'CC-CL', 13, 10, 6, 'Airy whipped cream over a soft biscuit floor.', true],
-            ['Misty Green', 'Cream Cups', 'CC-MG', 16, 12, 7.5, 'Matcha cream settled over a soft biscuit floor.', true],
-            ['Cocoa Cascade', 'Cream Cups', 'CC-CO', 13, 10, 6, 'Dark cocoa pudding with a cascading ganache top.', true],
+        $product = Product::updateOrCreate(
+            ['sku' => 'GN-01'],
+            [
+                'category_id' => $categories['Graham']->id,
+                'name' => 'Graham Nest',
+                'slug' => 'graham-nest',
+                'description' => 'Buttery graham layers under a flavour of your choosing.',
+                'min_reseller_qty' => 10,
+                'is_active' => true,
+                'is_available' => true,
+                'is_featured' => true,
+                'available_to_resellers' => true,
+                'sort_order' => 0,
+            ],
+        );
+
+        $flavours = [
+            ['Cloudy Classic', 'GN-CL', 13, 10, 6, 'Airy whipped cream over a soft biscuit floor.'],
+            ['Misty Green', 'GN-MG', 16, 12, 7.5, 'Matcha cream settled over toasted graham.'],
+            ['Cocoa Cascade', 'GN-CO', 13, 10, 6, 'Dark cocoa pudding with a cascading ganache top.'],
         ];
 
-        $out = [];
-        foreach ($rows as $i => [$name, $cat, $sku, $retail, $wholesale, $cost, $desc, $featured]) {
-            $out[$sku] = Product::updateOrCreate(
+        foreach ($flavours as $i => [$name, $sku, $retail, $wholesale, $cost, $desc]) {
+            ProductVariant::updateOrCreate(
                 ['sku' => $sku],
                 [
-                    'category_id' => $categories[$cat]->id,
+                    'product_id' => $product->id,
                     'name' => $name,
                     'slug' => Str::slug($name),
                     'description' => $desc,
@@ -87,17 +107,16 @@ class DatabaseSeeder extends Seeder
                     'reseller_price' => $wholesale,
                     'cost_price' => $cost,
                     'stock' => 100,
+                    'tracks_stock' => true,
                     'low_stock_threshold' => 20,
-                    'min_reseller_qty' => 10,
                     'is_active' => true,
-                    'is_featured' => $featured,
-                    'available_to_resellers' => true,
+                    'is_available' => true,
                     'sort_order' => $i,
                 ],
             );
         }
 
-        return $out;
+        return ['GN-01' => $product];
     }
 
     private function seedStaff(): array

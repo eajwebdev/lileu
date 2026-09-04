@@ -33,7 +33,13 @@ export default function Create({ sellers, products }) {
     }, []);
 
     const visible = useMemo(
-        () => products.filter((p) => !term || p.name.toLowerCase().includes(term.toLowerCase()) || p.sku.toLowerCase().includes(term.toLowerCase())),
+        () =>
+            products.filter(
+                (p) =>
+                    !term ||
+                    p.label.toLowerCase().includes(term.toLowerCase()) ||
+                    (p.sku ?? '').toLowerCase().includes(term.toLowerCase()),
+            ),
         [products, term],
     );
 
@@ -41,9 +47,12 @@ export default function Create({ sellers, products }) {
         () =>
             Object.entries(cart)
                 .filter(([, row]) => row.quantity > 0)
-                .map(([id, row]) => {
-                    const product = products.find((p) => String(p.id) === id);
-                    const unitPrice = row.unit_price === '' ? product.unit_price : Number(row.unit_price);
+                .map(([key, row]) => {
+                    const product = products.find((p) => p.key === key);
+
+                    if (!product) return null;
+
+                    const unitPrice = row.unit_price === '' ? product.reseller_price : Number(row.unit_price);
 
                     return {
                         product,
@@ -51,7 +60,8 @@ export default function Create({ sellers, products }) {
                         unitPrice,
                         lineTotal: unitPrice * row.quantity,
                     };
-                }),
+                })
+                .filter(Boolean),
         [cart, products],
     );
 
@@ -65,11 +75,11 @@ export default function Create({ sellers, products }) {
             const maximum = !product.is_available ? 0 : product.tracks_stock ? product.stock : 100000;
             const clamped = Math.min(maximum, Math.max(0, quantity));
 
-            if (clamped === 0) delete next[product.id];
+            if (clamped === 0) delete next[product.key];
             else
-                next[product.id] = {
+                next[product.key] = {
                     quantity: clamped,
-                    unit_price: prev[product.id]?.unit_price ?? '',
+                    unit_price: prev[product.key]?.unit_price ?? '',
                 };
 
             return next;
@@ -78,8 +88,8 @@ export default function Create({ sellers, products }) {
     const setPrice = (product, value) =>
         setCart((prev) => ({
             ...prev,
-            [product.id]: {
-                quantity: prev[product.id]?.quantity ?? 0,
+            [product.key]: {
+                quantity: prev[product.key]?.quantity ?? 0,
                 unit_price: value,
             },
         }));
@@ -90,7 +100,8 @@ export default function Create({ sellers, products }) {
         transform((form) => ({
             ...form,
             items: lines.map((l) => ({
-                product_id: l.product.id,
+                product_id: l.product.product_id,
+                product_variant_id: l.product.variant_id,
                 quantity: l.quantity,
                 unit_price: l.unitPrice,
             })),
@@ -140,12 +151,12 @@ export default function Create({ sellers, products }) {
                     ) : (
                         <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 pb-2 xl:grid-cols-2">
                             {visible.map((product) => {
-                                const row = cart[product.id];
+                                const row = cart[product.key];
                                 const qty = row?.quantity ?? 0;
 
                                 return (
                                     <div
-                                        key={product.id}
+                                        key={product.key}
                                         className={clsx(
                                             'flex min-h-24 gap-2.5 rounded-2xl border p-2.5 transition',
                                             !product.is_available
@@ -160,7 +171,7 @@ export default function Create({ sellers, products }) {
                                         </div>
 
                                         <div className="flex min-w-0 flex-1 flex-col">
-                                            <p className="truncate font-semibold text-chocolate-700">{product.name}</p>
+                                            <p className="truncate font-semibold text-chocolate-700">{product.label}</p>
                                             <p className="text-xs text-chocolate-400">
                                                 {!product.is_available
                                                     ? 'Unavailable'
@@ -177,7 +188,7 @@ export default function Create({ sellers, products }) {
                                                     onClick={() => setQty(product, qty - 1)}
                                                     disabled={qty === 0}
                                                     className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 active:scale-95 disabled:opacity-40"
-                                                    aria-label={`Remove one ${product.name}`}
+                                                    aria-label={`Remove one ${product.label}`}
                                                 >
                                                     <Minus className="h-4 w-4" />
                                                 </button>
@@ -203,7 +214,7 @@ export default function Create({ sellers, products }) {
                                                         (product.tracks_stock && qty >= product.stock)
                                                     }
                                                     className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-lg border border-cream-300 bg-vanilla text-chocolate-600 transition hover:bg-cream-100 active:scale-95 disabled:opacity-40"
-                                                    aria-label={`Add one ${product.name}`}
+                                                    aria-label={`Add one ${product.label}`}
                                                 >
                                                     <Plus className="h-4 w-4" />
                                                 </button>
@@ -214,7 +225,7 @@ export default function Create({ sellers, products }) {
                                                         step="0.01"
                                                         value={row?.unit_price ?? ''}
                                                         onChange={(e) => setPrice(product, e.target.value)}
-                                                        placeholder={String(product.unit_price)}
+                                                        placeholder={String(product.reseller_price)}
                                                         title="Price the seller remits per unit"
                                                         className="ml-auto h-9 min-w-0 w-18 rounded-lg border-cream-300 bg-vanilla text-right text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
                                                     />
@@ -281,9 +292,9 @@ export default function Create({ sellers, products }) {
                         ) : (
                             <ul className="mt-2 min-h-0 flex-1 divide-y divide-cream-200 overflow-y-auto overscroll-contain pr-1">
                                 {lines.map((line) => (
-                                    <li key={line.product.id} className="flex items-center gap-2 py-2">
+                                    <li key={line.product.key} className="flex items-center gap-2 py-2">
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-medium text-chocolate-700">{line.product.name}</p>
+                                            <p className="truncate text-sm font-medium text-chocolate-700">{line.product.label}</p>
                                             <p className="text-xs text-chocolate-400">
                                                 {line.quantity} × <Money value={line.unitPrice} />
                                             </p>
@@ -295,7 +306,7 @@ export default function Create({ sellers, products }) {
                                             type="button"
                                             onClick={() => setQty(line.product, 0)}
                                             className="rounded-lg p-1.5 text-chocolate-300 transition hover:bg-cherry/10 hover:text-cherry"
-                                            aria-label={`Remove ${line.product.name}`}
+                                            aria-label={`Remove ${line.product.label}`}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>

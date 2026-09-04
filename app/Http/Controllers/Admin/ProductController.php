@@ -17,7 +17,7 @@ class ProductController extends Controller
     public function index(Request $request): Response
     {
         $products = Product::query()
-            ->with('category:id,name,slug,accent')
+            ->with(['category:id,name,slug,accent', 'variants'])
             ->when($request->string('q')->toString(), fn ($q, $term) => $q
                 ->where(fn ($w) => $w->where('name', 'like', "%{$term}%")->orWhere('sku', 'like', "%{$term}%")))
             ->orderBy('sort_order')
@@ -46,6 +46,27 @@ class ProductController extends Controller
                 'is_featured' => $p->is_featured,
                 'available_to_resellers' => $p->available_to_resellers,
                 'is_low_stock' => $p->is_low_stock,
+                'has_variants' => $p->hasVariants(),
+                'total_stock' => $p->totalStock(),
+                'from_price' => $p->lowestRetailPrice(),
+                'to_price' => $p->highestRetailPrice(),
+                'variants' => $p->variants->map(fn ($v) => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'sku' => $v->sku,
+                    'description' => $v->description,
+                    'image_path' => $v->image_path,
+                    'retail_price' => (float) $v->retail_price,
+                    'reseller_price' => (float) $v->reseller_price,
+                    'cost_price' => (float) $v->cost_price,
+                    'stock' => (int) $v->stock,
+                    'tracks_stock' => $v->tracksStock(),
+                    'low_stock_threshold' => $v->low_stock_threshold,
+                    'is_active' => $v->is_active,
+                    'is_available' => $v->isManuallyAvailable(),
+                    'is_low_stock' => $v->is_low_stock,
+                    'sort_order' => $v->sort_order,
+                ])->values(),
             ]);
 
         return Inertia::render('Admin/Products/Index', [

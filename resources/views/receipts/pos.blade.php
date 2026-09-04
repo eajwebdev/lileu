@@ -108,7 +108,7 @@
                 <tr>
                     <td class="qty">{{ $item->quantity }}×</td>
                     <td>
-                        {{ $item->product_name }}
+                        {{ $item->display_name }}
                         <div class="unit">@ {{ $peso($item->unit_price) }}</div>
                     </td>
                     <td class="amt">{{ $peso($item->line_total) }}</td>

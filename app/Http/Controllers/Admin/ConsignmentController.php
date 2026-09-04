@@ -9,6 +9,7 @@ use App\Models\ConsignmentSettlement;
 use App\Models\Product;
 use App\Models\Reseller;
 use App\Services\ConsignmentService;
+use App\Support\Catalog;
 use App\Support\Settings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -82,20 +83,8 @@ class ConsignmentController extends Controller
                     'phone' => $r->phone,
                     'engagement' => $r->engagement,
                 ]),
-            'products' => Product::active()
-                ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'stock', 'tracks_stock', 'is_available', 'reseller_price', 'retail_price', 'image_path'])
-                ->map(fn (Product $p) => [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'sku' => $p->sku,
-                    'stock' => $p->stock,
-                    'tracks_stock' => $p->tracksStock(),
-                    'is_available' => $p->isManuallyAvailable(),
-                    'unit_price' => (float) $p->reseller_price,
-                    'retail_price' => (float) $p->retail_price,
-                    'image_url' => $p->image_url,
-                ]),
+            // Flavours are issued individually, so the picker lists sellables.
+            'products' => Catalog::sellables(Catalog::activeProducts()),
         ]);
     }
 
@@ -107,7 +96,8 @@ class ConsignmentController extends Controller
                 Rule::exists('resellers', 'id')->where('status', Reseller::STATUS_APPROVED),
             ],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'issued_on' => ['required', 'date'],
@@ -244,7 +234,7 @@ class ConsignmentController extends Controller
             ],
             'items' => $consignment->items->map(fn (ConsignmentItem $i) => [
                 'id' => $i->id,
-                'name' => $i->product_name,
+                'name' => $i->display_name,
                 'sku' => $i->sku,
                 'unit_price' => (float) $i->unit_price,
                 'retail_price' => (float) $i->retail_price,
@@ -270,7 +260,7 @@ class ConsignmentController extends Controller
                     'amount_collected' => (float) $s->amount_collected,
                     'is_final' => $s->is_final,
                     'lines' => $s->items->map(fn ($i) => [
-                        'name' => $i->product_name,
+                        'name' => $i->display_name,
                         'sold' => $i->quantity_sold,
                         'returned' => $i->quantity_returned,
                         'expired' => $i->quantity_expired,
@@ -296,7 +286,7 @@ class ConsignmentController extends Controller
             'recorded_by' => $settlement->recorder?->name,
             'notes' => $settlement->notes,
             'items' => $settlement->items->map(fn ($i) => [
-                'name' => $i->product_name,
+                'name' => $i->display_name,
                 'sold' => $i->quantity_sold,
                 'returned' => $i->quantity_returned,
                 'expired' => $i->quantity_expired,

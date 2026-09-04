@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Concerns\NamesASoldItem;
 use Illuminate\Database\Eloquent\Model;
 
 class ResellerOrderItem extends Model
 {
+    use NamesASoldItem;
+
     protected $fillable = [
-        'reseller_order_id', 'product_id', 'product_name', 'sku',
+        'reseller_order_id', 'product_id', 'product_variant_id', 'product_name', 'variant_name', 'sku',
         'quantity', 'unit_price', 'line_total',
     ];
 

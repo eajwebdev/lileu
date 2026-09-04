@@ -227,6 +227,20 @@ class AdminManagementTest extends TestCase
     public function test_the_products_a_seller_may_order_can_be_synced(): void
     {
         $seller = $this->approvedSeller();
+
+        // Approval is granted per product, so the seller gets every flavour of
+        // whichever products are on their list.
+        Product::create([
+            'category_id' => Category::firstOrFail()->id,
+            'name' => 'Munchkin Glazed',
+            'slug' => 'munchkin-glazed',
+            'sku' => 'MK-GL',
+            'retail_price' => 10,
+            'reseller_price' => 7.5,
+            'stock' => 50,
+            'min_reseller_qty' => 1,
+        ]);
+
         $ids = Product::query()->limit(2)->pluck('id')->all();
 
         $this->actingAs($this->admin)

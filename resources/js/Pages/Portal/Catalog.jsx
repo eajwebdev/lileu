@@ -10,7 +10,7 @@ export default function Catalog({ products, isCurated }) {
     const visible = products.filter(
         (p) =>
             !term ||
-            p.name.toLowerCase().includes(term.toLowerCase()) ||
+            p.label.toLowerCase().includes(term.toLowerCase()) ||
             p.sku.toLowerCase().includes(term.toLowerCase()),
     );
 
@@ -49,7 +49,7 @@ export default function Catalog({ products, isCurated }) {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {visible.map((product) => (
                         <div
-                            key={product.id}
+                            key={product.key}
                             className="overflow-hidden rounded-2xl border border-cream-300/70 bg-vanilla shadow-soft"
                         >
                             <div className="aspect-[16/10] bg-cream-200">
@@ -58,7 +58,7 @@ export default function Catalog({ products, isCurated }) {
 
                             <div className="p-4">
                                 <div className="flex items-start justify-between gap-2">
-                                    <h3 className="font-display font-semibold text-chocolate-700">{product.name}</h3>
+                                    <h3 className="font-display font-semibold text-chocolate-700">{product.label}</h3>
                                     <span className="font-mono text-[11px] text-chocolate-300">{product.sku}</span>
                                 </div>
 

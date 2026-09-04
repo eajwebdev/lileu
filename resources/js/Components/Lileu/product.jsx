@@ -84,11 +84,18 @@ export function ProductCard({ product }) {
                 <div className="mt-4 flex items-end justify-between border-t border-cream-300/70 pt-4">
                     <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-chocolate-300">
-                            Retail
+                            {product.has_variants && product.variants?.length > 1 ? 'From' : 'Retail'}
                         </p>
                         <p className="font-display text-xl font-semibold text-chocolate-700">
                             <Money value={product.retail_price} decimals={0} />
                         </p>
+                        {/* A product sold by flavour says so, so the price reads as a starting point. */}
+                        {product.has_variants && product.variants?.length > 0 && (
+                            <p className="text-[11px] text-chocolate-400">
+                                {product.variants.length}{' '}
+                                {product.variants.length === 1 ? 'flavour' : 'flavours'}
+                            </p>
+                        )}
                     </div>
                     <span
                         className={clsx(

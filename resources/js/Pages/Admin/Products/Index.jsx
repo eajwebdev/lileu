@@ -1,7 +1,7 @@
 import { router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Package, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, IceCreamCone, Package, Pencil, Plus, Search, Tags, Trash2 } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import {
     Badge,
@@ -41,10 +41,29 @@ const BLANK = {
 
 const ACCENTS = ['blush', 'caramel', 'cherry', 'chocolate', 'success'];
 
+const BLANK_VARIANT = {
+    name: '',
+    sku: '',
+    description: '',
+    image_path: '',
+    retail_price: '',
+    reseller_price: '',
+    cost_price: '',
+    stock: 0,
+    tracks_stock: true,
+    low_stock_threshold: 10,
+    is_active: true,
+    is_available: true,
+    sort_order: 0,
+};
+
 export default function Index({ products, categories, filters }) {
     const [term, setTerm] = useState(filters.q ?? '');
     const [editing, setEditing] = useState(null);
     const [showCategories, setShowCategories] = useState(false);
+    const [expanded, setExpanded] = useState({});
+    // { product, variant } — variant null means a new flavour.
+    const [variantEditing, setVariantEditing] = useState(null);
 
     const form = useForm(BLANK);
 
@@ -165,21 +184,67 @@ export default function Index({ products, categories, filters }) {
                                                     <p className="font-mono text-[11px] text-chocolate-300">
                                                         {product.sku}
                                                     </p>
+                                                    {product.has_variants && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setExpanded((prev) => ({
+                                                                    ...prev,
+                                                                    [product.id]: !prev[product.id],
+                                                                }))
+                                                            }
+                                                            className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-blush-600 transition hover:text-chocolate-700"
+                                                        >
+                                                            {expanded[product.id] ? (
+                                                                <ChevronDown className="h-3 w-3" />
+                                                            ) : (
+                                                                <ChevronRight className="h-3 w-3" />
+                                                            )}
+                                                            {product.variants.length}{' '}
+                                                            {product.variants.length === 1 ? 'flavour' : 'flavours'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="text-xs">{product.category?.name ?? '—'}</td>
                                         <td className="text-right font-semibold tabular-nums text-chocolate-700">
-                                            <Money value={product.retail_price} />
+                                            {product.has_variants ? (
+                                                product.from_price === product.to_price ? (
+                                                    <Money value={product.from_price} />
+                                                ) : (
+                                                    <span className="text-xs">
+                                                        <Money value={product.from_price} /> –{' '}
+                                                        <Money value={product.to_price} />
+                                                    </span>
+                                                )
+                                            ) : (
+                                                <Money value={product.retail_price} />
+                                            )}
                                         </td>
                                         <td className="text-right tabular-nums">
-                                            <Money value={product.reseller_price} />
+                                            {product.has_variants ? (
+                                                <span className="text-chocolate-300">by flavour</span>
+                                            ) : (
+                                                <Money value={product.reseller_price} />
+                                            )}
                                         </td>
                                         <td className="text-right tabular-nums text-chocolate-400">
-                                            <Money value={product.cost_price} />
+                                            {product.has_variants ? '—' : <Money value={product.cost_price} />}
                                         </td>
                                         <td className="text-right">
-                                            {product.tracks_stock ? (
+                                            {product.has_variants ? (
+                                                <span
+                                                    className={clsx(
+                                                        'badge',
+                                                        product.is_low_stock
+                                                            ? 'bg-caramel-soft/30 text-caramel-dark'
+                                                            : 'bg-success-light text-success',
+                                                    )}
+                                                >
+                                                    {product.total_stock}
+                                                </span>
+                                            ) : product.tracks_stock ? (
                                                 <span
                                                     className={clsx(
                                                         'badge',
@@ -233,6 +298,17 @@ export default function Index({ products, categories, filters }) {
                                             <div className="flex justify-end gap-1">
                                                 <button
                                                     type="button"
+                                                    onClick={() => {
+                                                        setExpanded((prev) => ({ ...prev, [product.id]: true }));
+                                                        setVariantEditing({ product, variant: null });
+                                                    }}
+                                                    className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-blush-100 hover:text-blush-600"
+                                                    aria-label={`Add a flavour to ${product.name}`}
+                                                >
+                                                    <IceCreamCone className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => openEdit(product)}
                                                     className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cream-200 hover:text-chocolate-700"
                                                     aria-label={`Edit ${product.name}`}
@@ -257,7 +333,25 @@ export default function Index({ products, categories, filters }) {
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                )).flatMap((row, i) => {
+                                    const product = products.data[i];
+
+                                    if (!product.has_variants || !expanded[product.id]) return [row];
+
+                                    return [
+                                        row,
+                                        <tr key={`${product.id}-variants`} className="bg-cream-50/70">
+                                            <td colSpan={8} className="px-4 py-3">
+                                                <VariantRows
+                                                    product={product}
+                                                    onEdit={(variant) =>
+                                                        setVariantEditing({ product, variant })
+                                                    }
+                                                />
+                                            </td>
+                                        </tr>,
+                                    ];
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -426,6 +520,13 @@ export default function Index({ products, categories, filters }) {
             </Modal>
 
             <CategoryModal open={showCategories} onClose={() => setShowCategories(false)} categories={categories} />
+
+            <VariantModal
+                open={variantEditing !== null}
+                product={variantEditing?.product}
+                variant={variantEditing?.variant}
+                onClose={() => setVariantEditing(null)}
+            />
         </AdminLayout>
     );
 }
@@ -491,6 +592,283 @@ function CategoryModal({ open, onClose, categories }) {
                     </li>
                 ))}
             </ul>
+        </Modal>
+    );
+}
+
+/**
+ * The flavours of one product, each with the price and stock it sells at.
+ */
+function VariantRows({ product, onEdit }) {
+    return (
+        <div className="overflow-x-auto rounded-xl border border-cream-200 bg-vanilla">
+            <table className="table-lileu min-w-full">
+                <thead>
+                    <tr>
+                        <th>Flavour</th>
+                        <th className="text-right">Retail</th>
+                        <th className="text-right">Reseller</th>
+                        <th className="text-right">Cost</th>
+                        <th className="text-right">Stock</th>
+                        <th>Visibility</th>
+                        <th className="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {product.variants.map((variant) => (
+                        <tr key={variant.id}>
+                            <td>
+                                <p className="font-medium text-chocolate-700">{variant.name}</p>
+                                <p className="font-mono text-[11px] text-chocolate-300">{variant.sku}</p>
+                            </td>
+                            <td className="text-right font-semibold tabular-nums text-chocolate-700">
+                                <Money value={variant.retail_price} />
+                            </td>
+                            <td className="text-right tabular-nums">
+                                <Money value={variant.reseller_price} />
+                            </td>
+                            <td className="text-right tabular-nums text-chocolate-400">
+                                <Money value={variant.cost_price} />
+                            </td>
+                            <td className="text-right">
+                                {variant.tracks_stock ? (
+                                    <span
+                                        className={clsx(
+                                            'badge',
+                                            variant.is_low_stock
+                                                ? 'bg-caramel-soft/30 text-caramel-dark'
+                                                : 'bg-success-light text-success',
+                                        )}
+                                    >
+                                        {variant.stock}
+                                    </span>
+                                ) : (
+                                    <Badge tone="blush">Made to order</Badge>
+                                )}
+                            </td>
+                            <td>
+                                <div className="flex flex-wrap gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            router.patch(
+                                                route('admin.products.variants.availability', [
+                                                    product.id,
+                                                    variant.id,
+                                                ]),
+                                                { is_available: !variant.is_available },
+                                                { preserveScroll: true },
+                                            )
+                                        }
+                                        aria-pressed={variant.is_available}
+                                        className={clsx(
+                                            'badge cursor-pointer border transition active:scale-95',
+                                            variant.is_available
+                                                ? 'border-success/20 bg-success-light text-success hover:bg-success/15'
+                                                : 'border-cherry/20 bg-cherry/10 text-cherry-dark hover:bg-cherry/15',
+                                        )}
+                                    >
+                                        <span
+                                            className={clsx(
+                                                'h-1.5 w-1.5 rounded-full',
+                                                variant.is_available ? 'bg-success' : 'bg-cherry',
+                                            )}
+                                        />
+                                        {variant.is_available ? 'Available' : 'Unavailable'}
+                                    </button>
+                                    {!variant.is_active && <Badge tone="muted-red">Hidden</Badge>}
+                                </div>
+                            </td>
+                            <td>
+                                <div className="flex justify-end gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => onEdit(variant)}
+                                        className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cream-200 hover:text-chocolate-700"
+                                        aria-label={`Edit ${variant.name}`}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (window.confirm(`Remove ${variant.name}?`)) {
+                                                router.delete(
+                                                    route('admin.products.variants.destroy', [
+                                                        product.id,
+                                                        variant.id,
+                                                    ]),
+                                                    { preserveScroll: true },
+                                                );
+                                            }
+                                        }}
+                                        className="rounded-lg p-1.5 text-chocolate-400 transition hover:bg-cherry/10 hover:text-cherry"
+                                        aria-label={`Delete ${variant.name}`}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function VariantModal({ open, product, variant, onClose }) {
+    const form = useForm(BLANK_VARIANT);
+
+    // Load the flavour being edited each time the modal opens for one.
+    useEffect(() => {
+        if (!open) return;
+
+        form.clearErrors();
+        form.setData(
+            variant
+                ? {
+                      name: variant.name,
+                      sku: variant.sku,
+                      description: variant.description ?? '',
+                      image_path: variant.image_path ?? '',
+                      retail_price: variant.retail_price,
+                      reseller_price: variant.reseller_price,
+                      cost_price: variant.cost_price,
+                      stock: variant.stock,
+                      tracks_stock: variant.tracks_stock,
+                      low_stock_threshold: variant.low_stock_threshold,
+                      is_active: variant.is_active,
+                      is_available: variant.is_available,
+                      sort_order: variant.sort_order,
+                  }
+                : BLANK_VARIANT,
+        );
+    }, [open, variant?.id]);
+
+    if (!product) return null;
+
+    const submit = (e) => {
+        e.preventDefault();
+
+        const options = { preserveScroll: true, onSuccess: onClose };
+
+        if (variant) form.put(route('admin.products.variants.update', [product.id, variant.id]), options);
+        else form.post(route('admin.products.variants.store', product.id), options);
+    };
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={variant ? `Edit ${variant.name}` : `New flavour of ${product.name}`}
+            description="A flavour carries its own price and its own stock."
+            footer={
+                <>
+                    <Button type="button" variant="secondary" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" form="variant-form" disabled={form.processing}>
+                        {variant ? 'Save changes' : 'Add flavour'}
+                    </Button>
+                </>
+            }
+        >
+            <form id="variant-form" onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+                <Field label="Name" error={form.errors.name} required>
+                    <Input
+                        value={form.data.name}
+                        onChange={(e) => form.setData('name', e.target.value)}
+                        placeholder="Cloudy Classic"
+                    />
+                </Field>
+                <Field label="SKU" error={form.errors.sku} required>
+                    <Input
+                        value={form.data.sku}
+                        onChange={(e) => form.setData('sku', e.target.value)}
+                        placeholder="GN-CL"
+                    />
+                </Field>
+                <Field label="Description" error={form.errors.description} className="sm:col-span-2">
+                    <Textarea
+                        rows={2}
+                        value={form.data.description}
+                        onChange={(e) => form.setData('description', e.target.value)}
+                    />
+                </Field>
+                <Field label="Retail price" error={form.errors.retail_price} required>
+                    <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.data.retail_price}
+                        onChange={(e) => form.setData('retail_price', e.target.value)}
+                    />
+                </Field>
+                <Field label="Reseller price" error={form.errors.reseller_price} required>
+                    <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.data.reseller_price}
+                        onChange={(e) => form.setData('reseller_price', e.target.value)}
+                    />
+                </Field>
+                <Field label="Cost price" error={form.errors.cost_price}>
+                    <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={form.data.cost_price}
+                        onChange={(e) => form.setData('cost_price', e.target.value)}
+                    />
+                </Field>
+                <Field label="Stock" error={form.errors.stock} required>
+                    <Input
+                        type="number"
+                        min="0"
+                        value={form.data.stock}
+                        onChange={(e) => form.setData('stock', e.target.value)}
+                        disabled={!form.data.tracks_stock}
+                    />
+                </Field>
+                <Field label="Low stock alert" error={form.errors.low_stock_threshold}>
+                    <Input
+                        type="number"
+                        min="0"
+                        value={form.data.low_stock_threshold}
+                        onChange={(e) => form.setData('low_stock_threshold', e.target.value)}
+                    />
+                </Field>
+                <Field label="Sort order" error={form.errors.sort_order}>
+                    <Input
+                        type="number"
+                        min="0"
+                        value={form.data.sort_order}
+                        onChange={(e) => form.setData('sort_order', e.target.value)}
+                    />
+                </Field>
+                <div className="space-y-2.5 sm:col-span-2">
+                    <Toggle
+                        checked={form.data.tracks_stock}
+                        onChange={(v) => form.setData('tracks_stock', v)}
+                        label="Track stock"
+                        description="Off means made to order, so it never runs out."
+                    />
+                    <Toggle
+                        checked={form.data.is_available}
+                        onChange={(v) => form.setData('is_available', v)}
+                        label="Available"
+                        description="Switch off to pull it from the counter without hiding it."
+                    />
+                    <Toggle
+                        checked={form.data.is_active}
+                        onChange={(v) => form.setData('is_active', v)}
+                        label="Active"
+                        description="Inactive flavours drop off every list, including the storefront."
+                    />
+                </div>
+            </form>
         </Modal>
     );
 }

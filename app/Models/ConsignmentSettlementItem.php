@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Concerns\NamesASoldItem;
 use Illuminate\Database\Eloquent\Model;
 
 class ConsignmentSettlementItem extends Model
 {
+    use NamesASoldItem;
+
     protected $fillable = [
-        'consignment_settlement_id', 'consignment_item_id', 'product_id', 'product_name',
+        'consignment_settlement_id', 'consignment_item_id', 'product_id', 'product_variant_id', 'product_name', 'variant_name',
         'quantity_sold', 'quantity_returned', 'quantity_expired', 'quantity_damaged',
         'quantity_missing', 'unit_price', 'sold_value', 'loss_value',
     ];

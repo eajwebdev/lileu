@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\PosSale;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Purchase;
 use App\Models\Reseller;
 use App\Models\ResellerOrder;
@@ -37,9 +38,19 @@ class DashboardController extends Controller
         $commissions = (float) DB::table('reseller_order_items')
             ->join('reseller_orders', 'reseller_orders.id', '=', 'reseller_order_items.reseller_order_id')
             ->join('products', 'products.id', '=', 'reseller_order_items.product_id')
+            ->leftJoin(
+                'product_variants',
+                'product_variants.id',
+                '=',
+                'reseller_order_items.product_variant_id',
+            )
             ->whereBetween('reseller_orders.created_at', [$from, $to])
             ->where('reseller_orders.status', '!=', ResellerOrder::STATUS_CANCELLED)
-            ->sum(DB::raw('(products.retail_price - reseller_order_items.unit_price) * reseller_order_items.quantity'));
+            // The flavour sets retail when there is one; the product otherwise.
+            ->sum(DB::raw(
+                '(COALESCE(product_variants.retail_price, products.retail_price)'
+                .' - reseller_order_items.unit_price) * reseller_order_items.quantity',
+            ));
 
         $sales = round($posSales + $resellerCollected, 2);
 
@@ -64,8 +75,7 @@ class DashboardController extends Controller
                     ->where('status', '!=', ResellerOrder::STATUS_CANCELLED)->count(),
                 'receivables' => round((float) ResellerOrder::where('status', '!=', ResellerOrder::STATUS_CANCELLED)
                     ->sum('balance'), 2),
-                'low_stock' => Product::active()->where('tracks_stock', true)
-                    ->whereColumn('stock', '<=', 'low_stock_threshold')->count(),
+                'low_stock' => $this->lowStock()->count(),
             ],
             'salesTrend' => $this->salesTrend($from, $to),
             'topProducts' => $this->topProducts($from, $to),
@@ -82,13 +92,44 @@ class DashboardController extends Controller
                     'balance' => (float) $o->balance,
                     'placed_on' => $o->created_at->format('M j'),
                 ]),
-            'lowStock' => Product::active()
-                ->where('tracks_stock', true)
-                ->whereColumn('stock', '<=', 'low_stock_threshold')
-                ->orderBy('stock')
-                ->limit(6)
-                ->get(['id', 'name', 'stock', 'low_stock_threshold']),
+            'lowStock' => $this->lowStock()->take(6)->values(),
         ]);
+    }
+
+    /**
+     * Everything running low, whether it is a plain product or a flavour.
+     * A product that sells by flavour holds no stock of its own, so counting
+     * its zero would raise an alarm every single day.
+     */
+    private function lowStock()
+    {
+        $products = Product::active()
+            ->where('tracks_stock', true)
+            ->whereDoesntHave('variants', fn ($q) => $q->where('is_active', true))
+            ->whereColumn('stock', '<=', 'low_stock_threshold')
+            ->get(['id', 'name', 'stock', 'low_stock_threshold'])
+            ->map(fn (Product $p) => [
+                'id' => 'p'.$p->id,
+                'name' => $p->name,
+                'stock' => (int) $p->stock,
+                'low_stock_threshold' => (int) $p->low_stock_threshold,
+            ]);
+
+        $variants = ProductVariant::query()
+            ->where('product_variants.is_active', true)
+            ->where('product_variants.tracks_stock', true)
+            ->whereColumn('product_variants.stock', '<=', 'product_variants.low_stock_threshold')
+            ->whereHas('product', fn ($q) => $q->where('is_active', true))
+            ->with('product:id,name')
+            ->get()
+            ->map(fn (ProductVariant $v) => [
+                'id' => 'v'.$v->id,
+                'name' => $v->sellableLabel(),
+                'stock' => (int) $v->stock,
+                'low_stock_threshold' => (int) $v->low_stock_threshold,
+            ]);
+
+        return $products->concat($variants)->sortBy('stock')->values();
     }
 
     private function window(string $range): array
