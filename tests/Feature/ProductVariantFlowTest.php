@@ -681,4 +681,139 @@ class ProductVariantFlowTest extends TestCase
                 $this->assertSame(30.0, (float) $trend->sum('consignment'));
             });
     }
+
+    public function test_a_consignment_uses_the_standard_reseller_price_by_default(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $consignment = app(ConsignmentService::class)->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 4]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $item = $consignment->items()->sole();
+
+        // Misty Green wholesales at 12, not its 16 retail.
+        $this->assertSame('12.00', $item->unit_price);
+        $this->assertSame('16.00', $item->retail_price);
+        $this->assertSame('48.00', $consignment->issued_value);
+    }
+
+    public function test_a_negotiated_reseller_rate_carries_over_to_consignments(): void
+    {
+        $seller = $this->approvedSeller();
+
+        // The shop has agreed a special rate on this product with this seller.
+        $seller->products()->sync([
+            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
+        ]);
+
+        $consignment = app(ConsignmentService::class)->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 4]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $item = $consignment->items()->sole();
+
+        // The deal is struck per product, so the flavour inherits it.
+        $this->assertSame('8.50', $item->unit_price, 'The negotiated rate wins over the standard 12.');
+        $this->assertSame('34.00', $consignment->issued_value);
+    }
+
+    public function test_a_seller_without_a_deal_still_gets_the_standard_rate(): void
+    {
+        $dealSeller = $this->approvedSeller();
+        $dealSeller->products()->sync([
+            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
+        ]);
+
+        $plainSeller = Reseller::create([
+            'code' => 'RS-TEST-0009',
+            'name' => 'Plain Seller',
+            'phone' => '09170000000',
+            'status' => Reseller::STATUS_APPROVED,
+            'engagement' => Reseller::ENGAGEMENT_CONSIGNMENT,
+            'applied_at' => now(),
+            'approved_at' => now(),
+        ]);
+
+        $consignment = app(ConsignmentService::class)->issue(
+            $plainSeller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 2]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $this->assertSame('12.00', $consignment->items()->sole()->unit_price);
+    }
+
+    public function test_a_typed_unit_price_still_overrides_every_default(): void
+    {
+        $seller = $this->approvedSeller();
+        $seller->products()->sync([
+            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
+        ]);
+
+        $consignment = app(ConsignmentService::class)->issue(
+            $seller,
+            [[
+                'product_id' => $this->product->id,
+                'product_variant_id' => $this->matcha->id,
+                'quantity' => 2,
+                'unit_price' => 7,
+            ]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $this->assertSame('7.00', $consignment->items()->sole()->unit_price);
+    }
+
+    public function test_the_issue_page_sends_each_sellers_negotiated_rates(): void
+    {
+        $seller = $this->approvedSeller();
+        $seller->products()->sync([
+            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.consignments.create'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Consignments/Create')
+                ->where('sellers.0.prices.'.$this->product->id, fn ($v) => (float) $v === 8.5)
+                // The picker still carries the standard rate as the fallback.
+                ->where('products.0.reseller_price', fn ($v) => (float) $v === 10.0));
+    }
+
+    public function test_settlement_bills_the_seller_at_the_rate_they_took_stock_at(): void
+    {
+        $seller = $this->approvedSeller();
+        $seller->products()->sync([
+            $this->product->id => ['custom_price' => 8.5, 'is_approved' => true],
+        ]);
+
+        $consignments = app(ConsignmentService::class);
+
+        $consignment = $consignments->issue(
+            $seller,
+            [['product_id' => $this->product->id, 'product_variant_id' => $this->matcha->id, 'quantity' => 4]],
+            ['issued_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        $consignments->settle(
+            $consignment,
+            [['consignment_item_id' => $consignment->items()->sole()->id, 'sold' => 4]],
+            ['is_final' => true, 'settled_on' => now()->toDateString()],
+            $this->admin,
+        );
+
+        // 4 x 8.50, the negotiated rate — not 4 x 12.
+        $this->assertSame('34.00', $consignment->refresh()->sold_value);
+        $this->assertSame('34.00', \App\Models\ConsignmentSettlement::sole()->amount_collected);
+    }
 }

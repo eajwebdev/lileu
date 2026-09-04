@@ -43,6 +43,17 @@ export default function Create({ sellers, products }) {
         [products, term],
     );
 
+    // A consignee is a reseller, so they take stock at the rate they buy at:
+    // their negotiated price when one exists, the standard wholesale price
+    // otherwise. Picking a different seller reprices the whole basket.
+    const seller = sellers.find((s) => String(s.id) === String(data.reseller_id));
+
+    const rateFor = (product) => {
+        const negotiated = seller?.prices?.[product.product_id];
+
+        return negotiated ?? product.reseller_price;
+    };
+
     const lines = useMemo(
         () =>
             Object.entries(cart)
@@ -52,7 +63,7 @@ export default function Create({ sellers, products }) {
 
                     if (!product) return null;
 
-                    const unitPrice = row.unit_price === '' ? product.reseller_price : Number(row.unit_price);
+                    const unitPrice = row.unit_price === '' ? rateFor(product) : Number(row.unit_price);
 
                     return {
                         product,
@@ -62,7 +73,7 @@ export default function Create({ sellers, products }) {
                     };
                 })
                 .filter(Boolean),
-        [cart, products],
+        [cart, products, seller],
     );
 
     const issuedValue = lines.reduce((sum, l) => sum + l.lineTotal, 0);
@@ -225,7 +236,7 @@ export default function Create({ sellers, products }) {
                                                         step="0.01"
                                                         value={row?.unit_price ?? ''}
                                                         onChange={(e) => setPrice(product, e.target.value)}
-                                                        placeholder={String(product.reseller_price)}
+                                                        placeholder={String(rateFor(product))}
                                                         title="Price the seller remits per unit"
                                                         className="ml-auto h-9 min-w-0 w-18 rounded-lg border-cream-300 bg-vanilla text-right text-sm tabular-nums focus:border-blush-400 focus:ring-blush-200"
                                                     />

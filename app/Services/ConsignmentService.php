@@ -23,6 +23,7 @@ class ConsignmentService
     public function __construct(
         private NumberGenerator $numbers,
         private SellableResolver $sellables,
+        private OrderService $orders,
     ) {}
 
     /**
@@ -74,10 +75,12 @@ class ConsignmentService
                     "{$label}: only {$onHand} pcs are available, but {$quantity} were requested.",
                 );
 
-                // Default to the wholesale rate: the seller keeps retail minus this.
+                // A consignee is a reseller, so the rate is the one they buy
+                // at: their negotiated price if there is one, the standard
+                // wholesale price otherwise. The seller keeps retail minus this.
                 $unitPrice = isset($line['unit_price']) && $line['unit_price'] !== ''
                     ? (float) $line['unit_price']
-                    : $sellable->resellerPrice();
+                    : $this->orders->priceFor($seller, $sellable);
 
                 $rows[] = [
                     'product_id' => $sellable->sellableProductId(),

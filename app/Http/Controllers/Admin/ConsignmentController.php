@@ -73,8 +73,9 @@ class ConsignmentController extends Controller
         return Inertia::render('Admin/Consignments/Create', [
             'sellers' => Reseller::query()
                 ->whereIn('status', [Reseller::STATUS_APPROVED])
+                ->with('products:id')
                 ->orderBy('name')
-                ->get(['id', 'name', 'business_name', 'code', 'phone', 'engagement'])
+                ->get()
                 ->map(fn (Reseller $r) => [
                     'id' => $r->id,
                     'label' => $r->business_name ?: $r->name,
@@ -82,6 +83,11 @@ class ConsignmentController extends Controller
                     'code' => $r->code,
                     'phone' => $r->phone,
                     'engagement' => $r->engagement,
+                    // Rates negotiated with this seller, keyed by product. The
+                    // deal is struck per product, so every flavour inherits it.
+                    'prices' => $r->products
+                        ->filter(fn ($p) => $p->pivot->custom_price !== null)
+                        ->mapWithKeys(fn ($p) => [$p->id => (float) $p->pivot->custom_price]),
                 ]),
             // Flavours are issued individually, so the picker lists sellables.
             'products' => Catalog::sellables(Catalog::activeProducts()),
