@@ -256,4 +256,75 @@ class ProductImageTest extends TestCase
 
         $this->assertSame('https://example.test/photo.jpg', $this->variant->fresh()->image_url);
     }
+
+    public function test_the_browsers_method_spoofed_save_updates_the_flavour(): void
+    {
+        // This is the shape the form actually posts: a multipart body with the
+        // real verb in _method, because PHP will not parse a multipart PUT.
+        $this->actingAs($this->admin)
+            ->post(
+                route('admin.products.variants.update', [$this->product, $this->variant]),
+                $this->variantPayload([
+                    '_method' => 'put',
+                    'reseller_price' => 8,
+                    'image' => UploadedFile::fake()->image('cloudy.jpg'),
+                ]),
+            )
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->variant->refresh();
+
+        $this->assertSame('8.00', $this->variant->reseller_price);
+        Storage::disk(ProductImage::DISK)->assertExists($this->variant->image_path);
+    }
+
+    public function test_a_spoofed_save_with_no_photo_attached_still_saves(): void
+    {
+        // The everyday case: change a price, never touch the file field.
+        $this->actingAs($this->admin)
+            ->post(
+                route('admin.products.variants.update', [$this->product, $this->variant]),
+                $this->variantPayload([
+                    '_method' => 'put',
+                    'retail_price' => 15,
+                    'reseller_price' => 8,
+                    'image' => null,
+                    'remove_image' => false,
+                ]),
+            )
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->variant->refresh();
+
+        $this->assertSame('15.00', $this->variant->retail_price);
+        $this->assertSame('8.00', $this->variant->reseller_price);
+    }
+
+    public function test_the_products_own_spoofed_save_works_too(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.products.update', $this->product), [
+                '_method' => 'put',
+                'name' => 'Graham Nest',
+                'sku' => 'GN-01',
+                'description' => 'Buttery graham layers.',
+                'retail_price' => 0,
+                'reseller_price' => 0,
+                'stock' => 0,
+                'tracks_stock' => true,
+                'low_stock_threshold' => 10,
+                'min_reseller_qty' => 1,
+                'is_available' => true,
+                'image' => UploadedFile::fake()->image('nest.jpg'),
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->product->refresh();
+
+        $this->assertSame('Buttery graham layers.', $this->product->description);
+        Storage::disk(ProductImage::DISK)->assertExists($this->product->image_path);
+    }
 }

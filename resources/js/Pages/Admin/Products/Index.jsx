@@ -118,12 +118,23 @@ export default function Index({ products, categories, filters }) {
         const onSuccess = () => setEditing(null);
 
         if (editing === 'new') {
-            form.post(route('admin.products.store'), { preserveScroll: true, onSuccess });
+            form.transform((d) => d);
+            form.post(route('admin.products.store'), {
+                preserveScroll: true,
+                forceFormData: true,
+                onSuccess,
+            });
         } else {
-            // A multipart PUT is not parsed by PHP, so spoof the method.
-            form
-                .transform((d) => ({ ...d, _method: 'put' }))
-                .post(route('admin.products.update', editing.id), { preserveScroll: true, onSuccess });
+            // A multipart PUT is not parsed by PHP, so the update goes over
+            // POST with the real method spoofed in the body. forceFormData
+            // keeps it a multipart body even when no photo was picked, since
+            // method spoofing is only read from form fields, never from JSON.
+            form.transform((d) => ({ ...d, _method: 'put' }));
+            form.post(route('admin.products.update', editing.id), {
+                preserveScroll: true,
+                forceFormData: true,
+                onSuccess,
+            });
         }
     };
 
@@ -827,15 +838,18 @@ function VariantModal({ open, product, variant, onClose }) {
     const submit = (e) => {
         e.preventDefault();
 
-        const options = { preserveScroll: true, onSuccess: onClose };
+        // forceFormData keeps the body multipart even with no photo picked:
+        // method spoofing is only read from form fields, never from JSON.
+        const options = { preserveScroll: true, forceFormData: true, onSuccess: onClose };
 
         if (variant) {
             // PHP does not parse a multipart PUT body, so the update goes over
             // POST with the real method spoofed alongside it.
-            form
-                .transform((d) => ({ ...d, _method: 'put' }))
-                .post(route('admin.products.variants.update', [product.id, variant.id]), options);
+            form.transform((d) => ({ ...d, _method: 'put' }));
+            form.post(route('admin.products.variants.update', [product.id, variant.id]), options);
         } else {
+            // The transform is sticky and this form also creates, so clear it.
+            form.transform((d) => d);
             form.post(route('admin.products.variants.store', product.id), options);
         }
     };
