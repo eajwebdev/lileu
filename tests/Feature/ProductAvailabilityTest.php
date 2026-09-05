@@ -51,7 +51,6 @@ class ProductAvailabilityTest extends TestCase
             ->component('Site/Landing')
             ->has('featured', 1)
             ->where('featured.0.name', 'Mango Graham Cup')
-            ->where('featured.0.manually_unavailable', true)
-            ->where('featured.0.in_stock', false));
+            ->where('featured.0.is_available', false));
     }
 }

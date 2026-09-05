@@ -25,13 +25,16 @@ class LandingController extends Controller
 
         $sellable = $products->filter(fn (Product $p) => $this->flavourCount($p) > 0);
 
-        $featured = $sellable
-            ->sortByDesc('is_featured')
-            ->take(8)
-            ->values();
+        // The menu and the landing page show the same thing the same way: one
+        // card per flavour, because that is what a customer picks.
+        $featured = array_slice(
+            Catalog::menu($sellable->sortByDesc('is_featured')->values()),
+            0,
+            8,
+        );
 
         return Inertia::render('Site/Landing', [
-            'featured' => Catalog::grouped($featured),
+            'featured' => $featured,
             // Whatever the owner sets up in Admin → Products → Categories shows
             // up here, with a live count and a taste of what is inside.
             'categories' => $this->shelves($sellable),

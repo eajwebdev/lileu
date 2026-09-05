@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import SiteLayout from '@/Layouts/SiteLayout';
 import { ButtonLink, Money, SectionHeading } from '@/Components/Lileu/ui';
-import { ACCENT_BADGE, ProductCard, ProductPlate } from '@/Components/Lileu/product';
+import { ACCENT_BADGE, FlavourCard, ProductPlate } from '@/Components/Lileu/product';
 import Reveal, { CountUp } from '@/Components/Lileu/Reveal';
 
 const STEPS = [
@@ -299,9 +299,9 @@ export default function Landing({ featured, categories, stats }) {
                 </Reveal>
 
                 <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {featured.map((product, i) => (
-                        <Reveal key={product.id} delay={(i % 4) * 90} className="h-full">
-                            <ProductCard product={product} />
+                    {featured.map((item, i) => (
+                        <Reveal key={item.key} delay={(i % 4) * 90} className="h-full">
+                            <FlavourCard item={item} />
                         </Reveal>
                     ))}
                 </div>

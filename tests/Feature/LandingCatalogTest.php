@@ -87,9 +87,11 @@ class LandingCatalogTest extends TestCase
         $this->flavour($product, 'Cloudy Classic');
         $this->flavour($product, 'Retired Berry', ['is_active' => false]);
 
+        // The retired flavour is neither counted nor given a card.
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
             ->where('stats.flavours', 1)
-            ->has('featured.0.variants', 1));
+            ->has('featured', 1)
+            ->where('featured.0.variant_name', 'Cloudy Classic'));
     }
 
     public function test_a_product_whose_flavours_are_all_retired_leaves_the_page(): void
@@ -116,16 +118,17 @@ class LandingCatalogTest extends TestCase
             ->where('categories.0.name', 'Graham'));
     }
 
-    public function test_the_card_is_priced_across_every_flavour(): void
+    public function test_each_flavour_carries_its_own_price(): void
     {
         $product = $this->product();
         $this->flavour($product, 'Cloudy Classic', ['retail_price' => 13]);
         $this->flavour($product, 'Cocoa Cascade', ['retail_price' => 31]);
 
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
-            ->where('featured.0.has_variants', true)
-            ->where('featured.0.from_price', 13)
-            ->where('featured.0.to_price', 31));
+            ->has('featured', 2)
+            ->where('featured', fn ($items) => collect($items)
+                ->pluck('retail_price', 'variant_name')
+                ->all() === ['Cloudy Classic' => 13, 'Cocoa Cascade' => 31]));
     }
 
     public function test_the_shelf_price_looks_past_the_three_products_it_previews(): void
@@ -154,7 +157,12 @@ class LandingCatalogTest extends TestCase
         $this->flavour($product, 'Cocoa Cascade', ['image_path' => 'products/cocoa.jpg']);
 
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
-            ->where('featured.0.image_url', fn ($url) => str_contains((string) $url, 'products/cocoa.jpg'))
+            // The flavour that was photographed shows its own picture; the shelf
+            // borrows it to stand for a product that has none.
+            ->where('featured', fn ($items) => str_contains(
+                (string) collect($items)->firstWhere('variant_name', 'Cocoa Cascade')['image_url'],
+                'products/cocoa.jpg',
+            ))
             ->where('categories.0.preview.0.image_url', fn ($url) => str_contains((string) $url, 'products/cocoa.jpg')));
     }
 
@@ -170,23 +178,24 @@ class LandingCatalogTest extends TestCase
             ->where('featured.0.image_url', '/storage/products/nest.jpg'));
     }
 
-    public function test_every_flavour_reaches_the_page_named_and_priced(): void
+    public function test_every_flavour_gets_a_card_of_its_own(): void
     {
         $product = $this->product();
         $this->flavour($product, 'Cloudy Classic', ['retail_price' => 13]);
         $this->flavour($product, 'Cocoa Cascade', ['retail_price' => 31, 'image_path' => 'products/cocoa.jpg']);
         $this->flavour($product, 'Misty Green', ['retail_price' => 18, 'stock' => 0]);
 
+        // Three flavours, three cards — the same shape the menu uses, each one
+        // naming the product it belongs to and linking back at it.
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
-            ->has('featured.0.variants', 3)
-            ->where('featured.0.variants.0.name', 'Cloudy Classic')
-            ->where('featured.0.variants.0.retail_price', 13)
-            // Only a flavour with a picture of its own gets a thumbnail; the
-            // rest would otherwise repeat the product photo down the row.
-            ->where('featured.0.variants.0.has_own_photo', false)
-            ->where('featured.0.variants.1.has_own_photo', true)
-            // A flavour that ran out still shows, priced but struck through.
-            ->where('featured.0.variants.2.is_available', false));
+            ->has('featured', 3)
+            ->where('featured.0.name', 'Graham Nest')
+            ->where('featured.0.slug', 'graham-nest')
+            ->where('featured.0.variant_name', 'Cloudy Classic')
+            ->where('featured.0.retail_price', 13)
+            // A flavour that ran out keeps its card, told straight.
+            ->where('featured', fn ($items) => collect($items)
+                ->firstWhere('variant_name', 'Misty Green')['stock'] === 0));
     }
 
     public function test_wholesale_pricing_never_reaches_the_public_page(): void
@@ -198,8 +207,8 @@ class LandingCatalogTest extends TestCase
         // in the source of a page anyone can open.
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
             ->missing('featured.0.reseller_price')
-            ->missing('featured.0.variants.0.reseller_price')
-            ->missing('featured.0.cost_price'));
+            ->missing('featured.0.cost_price')
+            ->missing('featured.0.min_reseller_qty'));
     }
 
     public function test_a_typed_in_url_is_left_exactly_as_it_was_typed(): void
