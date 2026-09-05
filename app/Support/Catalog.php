@@ -57,13 +57,21 @@ class Catalog
                 ? $product->variants->where('is_active', true)
                 : $product->activeVariants()->get();
 
+            // A flavour knows how to fall back to the product's photo, so tell
+            // each one where it came from rather than letting it look the
+            // product up again on its own.
+            $variants->each(fn (ProductVariant $v) => $v->setRelation('product', $product));
+
             $rows[] = [
                 'id' => $product->id,
                 'name' => $product->name,
                 'slug' => $product->slug,
                 'sku' => $product->sku,
                 'description' => $product->description,
-                'image_url' => $product->image_url,
+                // A product photographed only through its flavours still gets a
+                // picture on its card, instead of a blank plate.
+                'image_url' => $product->image_url ?: $variants
+                    ->first(fn (ProductVariant $v) => filled($v->image_path))?->image_url,
                 'category' => $product->category?->only(['id', 'name', 'slug', 'accent']),
                 'has_variants' => $variants->isNotEmpty(),
                 // The headline price is the cheapest flavour; from/to lets a

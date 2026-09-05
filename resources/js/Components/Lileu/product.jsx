@@ -46,6 +46,10 @@ export function ProductImage({ product, accent = 'blush', className }) {
 
 export function ProductCard({ product }) {
     const accent = product.category?.accent ?? 'blush';
+    const flavours = product.variants?.length ?? 0;
+    // Flavours priced apart make the headline a starting point; flavours priced
+    // alike are just one price, so do not dress it up as a range.
+    const spread = product.has_variants && product.to_price > product.from_price;
 
     return (
         <Link
@@ -84,16 +88,21 @@ export function ProductCard({ product }) {
                 <div className="mt-4 flex items-end justify-between border-t border-cream-300/70 pt-4">
                     <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-chocolate-300">
-                            {product.has_variants && product.variants?.length > 1 ? 'From' : 'Retail'}
+                            {spread ? 'From' : 'Retail'}
                         </p>
                         <p className="font-display text-xl font-semibold text-chocolate-700">
-                            <Money value={product.retail_price} decimals={0} />
+                            <Money value={product.from_price ?? product.retail_price} decimals={0} />
                         </p>
-                        {/* A product sold by flavour says so, so the price reads as a starting point. */}
-                        {product.has_variants && product.variants?.length > 0 && (
+                        {/* A product sold by flavour says so, and says how far the prices reach. */}
+                        {flavours > 0 && (
                             <p className="text-[11px] text-chocolate-400">
-                                {product.variants.length}{' '}
-                                {product.variants.length === 1 ? 'flavour' : 'flavours'}
+                                {flavours} {flavours === 1 ? 'flavour' : 'flavours'}
+                                {spread && (
+                                    <>
+                                        {' · up to '}
+                                        <Money value={product.to_price} decimals={0} />
+                                    </>
+                                )}
                             </p>
                         )}
                     </div>

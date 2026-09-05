@@ -1,0 +1,168 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
+use Tests\TestCase;
+
+/**
+ * The landing page is a window onto the product list the shop already keeps.
+ *
+ * Nothing here is written by hand: the shelves, the cards, the counts and the
+ * pictures all come from Admin → Products, and a product sold by flavour has to
+ * read as several things rather than one.
+ */
+class LandingCatalogTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Category $category;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->category = Category::create(['name' => 'Graham', 'slug' => 'graham', 'is_active' => true]);
+    }
+
+    private function product(array $attributes = []): Product
+    {
+        return Product::create(array_merge([
+            'category_id' => $this->category->id,
+            'name' => 'Graham Nest',
+            'slug' => 'graham-nest',
+            'sku' => 'GN-01',
+            'retail_price' => 20,
+            'reseller_price' => 16,
+            'min_reseller_qty' => 1,
+            'is_active' => true,
+        ], $attributes));
+    }
+
+    private function flavour(Product $product, string $name, array $attributes = []): ProductVariant
+    {
+        return ProductVariant::create(array_merge([
+            'product_id' => $product->id,
+            'name' => $name,
+            'slug' => str($name)->slug()->value(),
+            'sku' => 'GN-'.strtoupper(substr($name, 0, 2)),
+            'retail_price' => 13,
+            'reseller_price' => 10,
+            'stock' => 20,
+            'is_active' => true,
+        ], $attributes));
+    }
+
+    public function test_the_headline_count_counts_flavours_not_product_rows(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic');
+        $this->flavour($product, 'Misty Green');
+        $this->flavour($product, 'Cocoa Cascade');
+
+        // One product on the shelf, but three things a customer can pick.
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('stats.products', 1)
+            ->where('stats.flavours', 3)
+            ->where('categories.0.flavours_count', 3)
+            ->where('categories.0.products_count', 1));
+    }
+
+    public function test_a_product_without_flavours_still_counts_as_one(): void
+    {
+        $this->product();
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('stats.flavours', 1)
+            ->where('categories.0.flavours_count', 1));
+    }
+
+    public function test_only_active_flavours_are_counted(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic');
+        $this->flavour($product, 'Retired Berry', ['is_active' => false]);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('stats.flavours', 1)
+            ->has('featured.0.variants', 1));
+    }
+
+    public function test_a_product_whose_flavours_are_all_retired_leaves_the_page(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Retired Berry', ['is_active' => false]);
+
+        // Nothing left to sell, and nothing sensible to price it at.
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->has('featured', 0)
+            ->where('stats.flavours', 0)
+            ->where('categories.0.from_price', 0));
+    }
+
+    public function test_the_card_is_priced_across_every_flavour(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic', ['retail_price' => 13]);
+        $this->flavour($product, 'Cocoa Cascade', ['retail_price' => 31]);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('featured.0.has_variants', true)
+            ->where('featured.0.from_price', 13)
+            ->where('featured.0.to_price', 31));
+    }
+
+    public function test_the_shelf_price_looks_past_the_three_products_it_previews(): void
+    {
+        // The shelf only shows three faces, but "from" has to mean the whole
+        // shelf, so the cheapest product must count even when it is not shown.
+        foreach (['Alpha', 'Bravo', 'Charlie'] as $i => $name) {
+            $this->product([
+                'name' => $name, 'slug' => strtolower($name), 'sku' => 'P-'.$i,
+                'retail_price' => 50, 'is_featured' => true,
+            ]);
+        }
+
+        $this->product(['name' => 'Delta', 'slug' => 'delta', 'sku' => 'P-9', 'retail_price' => 12]);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->has('categories.0.preview', 3)
+            ->where('categories.0.products_count', 4)
+            ->where('categories.0.from_price', 12));
+    }
+
+    public function test_a_product_photographed_only_through_its_flavours_still_shows_a_picture(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic');
+        $this->flavour($product, 'Cocoa Cascade', ['image_path' => 'products/cocoa.jpg']);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('featured.0.image_url', fn ($url) => str_contains((string) $url, 'products/cocoa.jpg'))
+            ->where('categories.0.preview.0.image_url', fn ($url) => str_contains((string) $url, 'products/cocoa.jpg')));
+    }
+
+    public function test_a_photo_is_addressed_relative_to_whatever_host_serves_the_shop(): void
+    {
+        // APP_URL is routinely left at localhost while the shop runs on another
+        // port; an absolute URL built from it points every photo at a server
+        // that does not have the file.
+        $product = $this->product(['image_path' => 'products/nest.jpg']);
+        $this->flavour($product, 'Cloudy Classic');
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('featured.0.image_url', '/storage/products/nest.jpg'));
+    }
+
+    public function test_a_typed_in_url_is_left_exactly_as_it_was_typed(): void
+    {
+        $this->product(['image_path' => 'https://example.test/nest.jpg']);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->where('featured.0.image_url', 'https://example.test/nest.jpg'));
+    }
+}

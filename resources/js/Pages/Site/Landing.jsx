@@ -74,6 +74,8 @@ function useParallax() {
 
 function CategoryCard({ category, index }) {
     const accent = category.accent ?? 'blush';
+    // One product can be several flavours on the shelf, so count those.
+    const flavours = category.flavours_count ?? category.products_count;
 
     return (
         <Reveal delay={index * 90} variant="up" className="h-full">
@@ -102,7 +104,7 @@ function CategoryCard({ category, index }) {
                 </div>
 
                 <span className={clsx('badge w-fit', ACCENT_BADGE[accent] ?? ACCENT_BADGE.blush)}>
-                    {category.products_count} {category.products_count === 1 ? 'flavour' : 'flavours'}
+                    {flavours} {flavours === 1 ? 'flavour' : 'flavours'}
                 </span>
 
                 <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight text-chocolate-700">
@@ -205,7 +207,7 @@ export default function Landing({ featured, categories, stats }) {
                             <dl className="mt-12 grid max-w-lg grid-cols-3 gap-4 border-t border-cream-300 pt-7">
                                 <div>
                                     <dd className="font-display text-3xl font-semibold text-chocolate-700">
-                                        <CountUp to={stats.products} />
+                                        <CountUp to={stats.flavours ?? stats.products} />
                                     </dd>
                                     <dt className="mt-0.5 text-xs font-medium uppercase tracking-[0.14em] text-chocolate-400">
                                         Flavours

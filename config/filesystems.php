@@ -41,7 +41,11 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // Root-relative, so a photo loads from whatever host and port is
+            // actually serving the shop. APP_URL is routinely left pointing at
+            // localhost while the app runs on another port, and an absolute URL
+            // built from it sends every image to a server that does not have it.
+            'url' => env('FILESYSTEM_PUBLIC_URL', '/storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
