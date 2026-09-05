@@ -83,6 +83,10 @@ class LandingController extends Controller
                         ->values(),
                 ];
             })
+            // An empty shelf is a shelf a shopper cannot browse, so it stays in
+            // the admin's category list and off the storefront.
+            ->filter(fn (array $shelf) => $shelf['products_count'] > 0)
+            ->values()
             ->all();
     }
 

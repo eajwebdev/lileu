@@ -23,7 +23,7 @@ const PLATE_TINTS = {
  * Warm placeholder plate. Product photography is the star of this brand, so an
  * image-less product still gets a dessert-toned surface instead of grey.
  */
-export function ProductPlate({ name, accent = 'blush', className }) {
+export function ProductPlate({ name, accent = 'blush', className, textClass = 'text-3xl' }) {
     const [from, to] = PLATE_TINTS[accent] ?? PLATE_TINTS.blush;
 
     return (
@@ -31,7 +31,9 @@ export function ProductPlate({ name, accent = 'blush', className }) {
             className={clsx('flex h-full w-full items-center justify-center', className)}
             style={{ background: `radial-gradient(circle at 30% 25%, ${from}, ${to})` }}
         >
-            <span className="font-display text-3xl font-semibold text-chocolate-800/40">{name?.[0] ?? 'L'}</span>
+            <span className={clsx('font-display font-semibold text-chocolate-800/40', textClass)}>
+                {name?.[0] ?? 'L'}
+            </span>
         </div>
     );
 }
@@ -85,6 +87,45 @@ export function ProductCard({ product }) {
                     </p>
                 )}
 
+                {/* Flavours are the thing being sold, so name and price every one
+                    of them here rather than hiding them behind a count. */}
+                {flavours > 0 && (
+                    <ul className="mt-3.5 flex flex-wrap gap-1.5">
+                        {product.variants.map((variant) => (
+                            <li
+                                key={variant.id}
+                                title={variant.is_available ? variant.name : `${variant.name} — sold out`}
+                                className={clsx(
+                                    'inline-flex items-center gap-1.5 rounded-full border py-1 pr-2.5 text-[11px] leading-none',
+                                    variant.has_own_photo ? 'pl-1' : 'pl-2.5',
+                                    variant.is_available
+                                        ? 'border-cream-300/80 bg-vanilla text-chocolate-600'
+                                        : 'border-cream-300/50 bg-cream-100 text-chocolate-300',
+                                )}
+                            >
+                                {variant.has_own_photo && (
+                                    <span className="h-5 w-5 shrink-0 overflow-hidden rounded-full bg-cream-200">
+                                        <img
+                                            src={variant.image_url}
+                                            alt=""
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </span>
+                                )}
+                                <span className="font-medium">{variant.name}</span>
+                                <span
+                                    className={clsx(
+                                        'tabular-nums',
+                                        variant.is_available ? 'text-chocolate-400' : 'line-through',
+                                    )}
+                                >
+                                    <Money value={variant.retail_price} decimals={0} />
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
                 <div className="mt-4 flex items-end justify-between border-t border-cream-300/70 pt-4">
                     <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-chocolate-300">
@@ -93,16 +134,10 @@ export function ProductCard({ product }) {
                         <p className="font-display text-xl font-semibold text-chocolate-700">
                             <Money value={product.from_price ?? product.retail_price} decimals={0} />
                         </p>
-                        {/* A product sold by flavour says so, and says how far the prices reach. */}
-                        {flavours > 0 && (
+                        {/* A product sold by flavour says how far its prices reach. */}
+                        {spread && (
                             <p className="text-[11px] text-chocolate-400">
-                                {flavours} {flavours === 1 ? 'flavour' : 'flavours'}
-                                {spread && (
-                                    <>
-                                        {' · up to '}
-                                        <Money value={product.to_price} decimals={0} />
-                                    </>
-                                )}
+                                up to <Money value={product.to_price} decimals={0} />
                             </p>
                         )}
                     </div>

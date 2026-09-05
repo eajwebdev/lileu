@@ -97,11 +97,23 @@ class LandingCatalogTest extends TestCase
         $product = $this->product();
         $this->flavour($product, 'Retired Berry', ['is_active' => false]);
 
-        // Nothing left to sell, and nothing sensible to price it at.
+        // Nothing left to sell, so nothing to put on a shelf either.
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
             ->has('featured', 0)
             ->where('stats.flavours', 0)
-            ->where('categories.0.from_price', 0));
+            ->has('categories', 0));
+    }
+
+    public function test_a_shelf_with_nothing_on_it_is_not_offered(): void
+    {
+        Category::create(['name' => 'Seasonal', 'slug' => 'seasonal', 'is_active' => true]);
+
+        $this->product();
+
+        // Two categories exist; only the one carrying a product is browsable.
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->has('categories', 1)
+            ->where('categories.0.name', 'Graham'));
     }
 
     public function test_the_card_is_priced_across_every_flavour(): void
@@ -156,6 +168,25 @@ class LandingCatalogTest extends TestCase
 
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
             ->where('featured.0.image_url', '/storage/products/nest.jpg'));
+    }
+
+    public function test_every_flavour_reaches_the_page_named_and_priced(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic', ['retail_price' => 13]);
+        $this->flavour($product, 'Cocoa Cascade', ['retail_price' => 31, 'image_path' => 'products/cocoa.jpg']);
+        $this->flavour($product, 'Misty Green', ['retail_price' => 18, 'stock' => 0]);
+
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->has('featured.0.variants', 3)
+            ->where('featured.0.variants.0.name', 'Cloudy Classic')
+            ->where('featured.0.variants.0.retail_price', 13)
+            // Only a flavour with a picture of its own gets a thumbnail; the
+            // rest would otherwise repeat the product photo down the row.
+            ->where('featured.0.variants.0.has_own_photo', false)
+            ->where('featured.0.variants.1.has_own_photo', true)
+            // A flavour that ran out still shows, priced but struck through.
+            ->where('featured.0.variants.2.is_available', false));
     }
 
     public function test_a_typed_in_url_is_left_exactly_as_it_was_typed(): void

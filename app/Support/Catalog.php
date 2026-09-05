@@ -93,6 +93,10 @@ class Catalog
                         'sku' => $v->sku,
                         'description' => $v->description,
                         'image_url' => $v->image_url,
+                        // image_url falls back to the product's photo, so say
+                        // whether this flavour was actually photographed — a row
+                        // of flavours should not repeat one picture five times.
+                        'has_own_photo' => filled($v->image_path),
                         'retail_price' => (float) $v->retail_price,
                         'reseller_price' => (float) $v->reseller_price,
                         'stock' => (int) $v->stock,
