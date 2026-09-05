@@ -4,10 +4,11 @@ import clsx from 'clsx';
 import { Cookie, Search } from 'lucide-react';
 import SiteLayout from '@/Layouts/SiteLayout';
 import { EmptyState, Input, SectionHeading } from '@/Components/Lileu/ui';
-import { ProductCard } from '@/Components/Lileu/product';
+import { FlavourCard } from '@/Components/Lileu/product';
 
-export default function Catalog({ products, categories, filters }) {
+export default function Catalog({ items, categories, filters }) {
     const [term, setTerm] = useState(filters.q ?? '');
+    const activeCategory = categories.find((c) => c.slug === filters.category);
 
     const applyFilters = (next) =>
         router.get(route('products.index'), next, { preserveState: true, replace: true });
@@ -71,7 +72,13 @@ export default function Catalog({ products, categories, filters }) {
                     </div>
                 </form>
 
-                {products.length === 0 ? (
+                {/* Say what is on screen, so a filtered menu never looks broken. */}
+                <p className="mt-6 text-sm text-chocolate-400">
+                    {items.length} {items.length === 1 ? 'flavour' : 'flavours'}
+                    {activeCategory && ` in ${activeCategory.name}`}
+                </p>
+
+                {items.length === 0 ? (
                     <EmptyState
                         icon={Cookie}
                         title="Nothing matches that yet"
@@ -83,9 +90,9 @@ export default function Catalog({ products, categories, filters }) {
                         }
                     />
                 ) : (
-                    <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                        {products.map((product) => (
-                            <ProductCard key={product.id} product={product} />
+                    <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        {items.map((item) => (
+                            <FlavourCard key={item.key} item={item} />
                         ))}
                     </div>
                 )}

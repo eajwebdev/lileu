@@ -71,7 +71,11 @@ export default function Product({ product, related }) {
                                     {product.variants.map((variant) => (
                                         <li
                                             key={variant.id}
+                                            // The menu links straight at a flavour, so give it
+                                            // something to land on.
+                                            id={`flavour-${variant.id}`}
                                             className={clsx(
+                                                'scroll-mt-24',
                                                 'flex items-center justify-between gap-4 rounded-2xl border px-4 py-3',
                                                 variant.is_available
                                                     ? 'border-cream-300 bg-vanilla'

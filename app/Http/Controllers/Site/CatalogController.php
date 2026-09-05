@@ -14,6 +14,8 @@ class CatalogController extends Controller
 {
     public function index(Request $request): Response
     {
+        $term = $request->string('q')->toString();
+
         $products = Product::query()
             ->active()
             ->with(['category:id,name,slug,accent', 'variants'])
@@ -21,18 +23,44 @@ class CatalogController extends Controller
                 'category',
                 fn ($c) => $c->where('slug', $slug),
             ))
-            ->when($request->string('q')->toString(), fn ($q, $term) => $q->where('name', 'like', "%{$term}%"))
+            // A shopper searching "cloudy" is naming a flavour, not a product,
+            // so the flavours are searched alongside the names above them.
+            ->when($term, fn ($q, $t) => $q->where(fn ($w) => $w
+                ->where('name', 'like', "%{$t}%")
+                ->orWhereHas('variants', fn ($v) => $v->where('name', 'like', "%{$t}%"))))
             ->orderByDesc('is_featured')
             ->orderBy('sort_order')
             ->get();
 
         return Inertia::render('Site/Catalog', [
-            // Shoppers browse products and choose a flavour on the product
-            // page, so the grid stays one card per product.
-            'products' => Catalog::grouped($products),
+            // The menu lists what can be bought, so a product sold by flavour
+            // contributes a card per flavour rather than one card hiding them.
+            'items' => $this->matching(Catalog::sellables($products), $term),
             'categories' => Category::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'slug', 'accent']),
             'filters' => $request->only(['category', 'q']),
         ]);
+    }
+
+    /**
+     * Narrow the flavours to the search itself.
+     *
+     * The query above keeps a whole product when any of its flavours matches,
+     * which is right for "graham" and wrong for "cloudy" — that should leave
+     * one card on the screen, not three. The label carries both names.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function matching(array $items, string $term): array
+    {
+        if ($term === '') {
+            return $items;
+        }
+
+        return collect($items)
+            ->filter(fn (array $item) => str_contains(mb_strtolower($item['label']), mb_strtolower($term)))
+            ->values()
+            ->all();
     }
 
     public function show(Product $product): Response
