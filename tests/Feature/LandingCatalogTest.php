@@ -189,6 +189,19 @@ class LandingCatalogTest extends TestCase
             ->where('featured.0.variants.2.is_available', false));
     }
 
+    public function test_wholesale_pricing_never_reaches_the_public_page(): void
+    {
+        $product = $this->product();
+        $this->flavour($product, 'Cloudy Classic');
+
+        // What a reseller pays is quoted in their own portal. It has no business
+        // in the source of a page anyone can open.
+        $this->get(route('home'))->assertInertia(fn (Assert $page) => $page
+            ->missing('featured.0.reseller_price')
+            ->missing('featured.0.variants.0.reseller_price')
+            ->missing('featured.0.cost_price'));
+    }
+
     public function test_a_typed_in_url_is_left_exactly_as_it_was_typed(): void
     {
         $this->product(['image_path' => 'https://example.test/nest.jpg']);

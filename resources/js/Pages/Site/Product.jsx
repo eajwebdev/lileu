@@ -1,13 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
 import clsx from 'clsx';
-import { ArrowLeft, ArrowRight, HandCoins, PackageCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import SiteLayout from '@/Layouts/SiteLayout';
 import { ButtonLink, Money } from '@/Components/Lileu/ui';
 import { ACCENT_BADGE, ProductImage, ProductPlate } from '@/Components/Lileu/product';
 
 export default function Product({ product, related }) {
     const accent = product.category?.accent ?? 'blush';
-    const margin = product.retail_price - product.reseller_price;
 
     return (
         <SiteLayout>
@@ -117,7 +116,7 @@ export default function Product({ product, related }) {
                             </div>
                         )}
 
-                        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                        <div className="mt-8">
                             <div className="rounded-2xl border border-cream-300 bg-vanilla p-5">
                                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-chocolate-300">
                                     Retail price
@@ -132,41 +131,17 @@ export default function Product({ product, related }) {
                                         <Money value={product.retail_price} decimals={0} />
                                     )}
                                 </p>
-                                <p className="mt-1 text-xs text-chocolate-400">What your customers pay per cup.</p>
-                            </div>
-
-                            <div className="rounded-2xl border border-blush-200 bg-blush-50 p-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blush-500">
-                                    Reseller price
-                                </p>
-                                <p className="mt-1 font-display text-3xl font-semibold text-chocolate-700">
-                                    <Money value={product.reseller_price} decimals={0} />
-                                </p>
-                                <p className="mt-1 text-xs text-chocolate-400">
-                                    Minimum {product.min_reseller_qty} pcs per order.
-                                </p>
+                                <p className="mt-1 text-xs text-chocolate-400">What you pay at the counter.</p>
                             </div>
                         </div>
 
-                        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-success/20 bg-success-light px-5 py-4">
-                            <HandCoins className="h-5 w-5 shrink-0 text-success" />
-                            <p className="text-sm text-chocolate-600">
-                                You keep{' '}
-                                <strong className="font-semibold text-success">
-                                    <Money value={margin} /> per cup
-                                </strong>{' '}
-                                as an approved reseller.
-                            </p>
-                        </div>
-
+                        {/* Wholesale pricing is quoted to approved resellers in
+                            their own portal, so the public page only invites
+                            them to apply. */}
                         <div className="mt-7 flex flex-wrap gap-3">
                             <ButtonLink href={route('reseller.apply')} className="px-6 py-3 text-base">
                                 Become a reseller
                                 <ArrowRight className="h-4 w-4" />
-                            </ButtonLink>
-                            <ButtonLink href={route('login')} variant="ghost" className="px-6 py-3 text-base">
-                                <PackageCheck className="h-4 w-4" />
-                                Order in the portal
                             </ButtonLink>
                         </div>
                     </div>

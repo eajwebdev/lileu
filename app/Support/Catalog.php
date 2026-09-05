@@ -47,6 +47,10 @@ class Catalog
     /**
      * The nested shape, for the storefront: a product with its flavours
      * underneath, so a shopper picks the product first and the flavour second.
+     *
+     * Wholesale pricing is deliberately absent. This shape is rendered into a
+     * public page, and what a reseller pays is between the shop and the
+     * reseller — it belongs in the portal, not in the source of the menu.
      */
     public static function grouped(iterable $products): array
     {
@@ -79,7 +83,6 @@ class Catalog
                 'retail_price' => $product->lowestRetailPrice(),
                 'from_price' => $product->lowestRetailPrice(),
                 'to_price' => $product->highestRetailPrice(),
-                'reseller_price' => $product->lowestResellerPrice(),
                 'in_stock' => $product->isAvailable(),
                 'manually_unavailable' => ! $product->isManuallyAvailable(),
                 'made_to_order' => ! $variants->isEmpty()
@@ -98,7 +101,6 @@ class Catalog
                         // of flavours should not repeat one picture five times.
                         'has_own_photo' => filled($v->image_path),
                         'retail_price' => (float) $v->retail_price,
-                        'reseller_price' => (float) $v->reseller_price,
                         'stock' => (int) $v->stock,
                         'tracks_stock' => $v->tracksStock(),
                         'is_available' => $v->isAvailable(),
@@ -138,6 +140,21 @@ class Catalog
             'category' => $product->category?->name,
             'accent' => $product->category?->accent ?? 'blush',
         ];
+    }
+
+    /**
+     * The flat shape with the trade prices taken back out, for the public menu.
+     *
+     * @param  iterable<Product>  $products
+     * @return array<int, array<string, mixed>>
+     */
+    public static function menu(iterable $products): array
+    {
+        return collect(self::sellables($products))
+            ->map(fn (array $row) => collect($row)
+                ->except(['reseller_price', 'cost_price', 'min_reseller_qty'])
+                ->all())
+            ->all();
     }
 
     /** @return Collection<int, Product> active products with what the presenters need */

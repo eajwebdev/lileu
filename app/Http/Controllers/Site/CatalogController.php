@@ -35,7 +35,7 @@ class CatalogController extends Controller
         return Inertia::render('Site/Catalog', [
             // The menu lists what can be bought, so a product sold by flavour
             // contributes a card per flavour rather than one card hiding them.
-            'items' => $this->matching(Catalog::sellables($products), $term),
+            'items' => $this->matching(Catalog::menu($products), $term),
             'categories' => Category::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'slug', 'accent']),
             'filters' => $request->only(['category', 'q']),
         ]);
@@ -70,9 +70,7 @@ class CatalogController extends Controller
         $product->load(['category:id,name,slug,accent', 'variants']);
 
         return Inertia::render('Site/Product', [
-            'product' => Catalog::grouped([$product])[0] + [
-                'min_reseller_qty' => $product->min_reseller_qty,
-            ],
+            'product' => Catalog::grouped([$product])[0],
             'related' => Product::active()
                 ->where('id', '!=', $product->id)
                 ->where('category_id', $product->category_id)

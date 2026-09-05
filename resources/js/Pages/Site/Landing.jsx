@@ -26,7 +26,7 @@ const STEPS = [
     {
         icon: Croissant,
         title: 'Order at reseller pricing',
-        body: 'Get your approved catalog with wholesale prices and a clear margin on every piece.',
+        body: 'Your approved catalog and your own wholesale pricing, quoted once you are in.',
     },
     {
         icon: QrCode,
@@ -248,9 +248,9 @@ export default function Landing({ featured, categories, stats }) {
                                 <HandCoins className="h-5 w-5" />
                             </span>
                             <span className="leading-tight">
-                                <span className="block text-xs font-medium text-chocolate-400">Reseller margin</span>
+                                <span className="block text-xs font-medium text-chocolate-400">Small batches</span>
                                 <span className="block font-display text-base font-semibold text-chocolate-700">
-                                    up to ₱3 / cup
+                                    baked to order
                                 </span>
                             </span>
                         </div>

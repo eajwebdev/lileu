@@ -133,6 +133,22 @@ class CatalogMenuTest extends TestCase
             ->where('items', fn ($items) => collect($items)->doesntContain('variant_name', 'Misty Green')));
     }
 
+    public function test_the_menu_quotes_retail_and_nothing_else(): void
+    {
+        $this->get(route('products.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('items.0.retail_price', 13)
+            ->missing('items.0.reseller_price')
+            ->missing('items.0.cost_price'));
+    }
+
+    public function test_a_product_page_keeps_wholesale_pricing_to_itself(): void
+    {
+        $this->get(route('products.show', $this->nest))->assertInertia(fn (Assert $page) => $page
+            ->component('Site/Product')
+            ->missing('product.reseller_price')
+            ->missing('product.variants.0.reseller_price'));
+    }
+
     public function test_a_sold_out_flavour_still_shows_with_its_stock_told_straight(): void
     {
         $this->nest->variants()->where('name', 'Cocoa Cascade')->update(['stock' => 0]);

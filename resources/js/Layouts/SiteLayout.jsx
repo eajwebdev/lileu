@@ -10,9 +10,22 @@ const NAV = [
     { label: 'Become a Reseller', route: 'reseller.apply' },
 ];
 
+/**
+ * Where a signed-in person actually works.
+ *
+ * Ordering happens in the reseller portal and nowhere else, so nobody but a
+ * reseller is offered one — a customer signing in has no basket to return to.
+ */
+const WORKSPACE = {
+    reseller: { label: 'My Portal', route: 'dashboard' },
+    admin: { label: 'Admin', route: 'admin.dashboard' },
+    cashier: { label: 'Point of Sale', route: 'pos.index' },
+};
+
 export default function SiteLayout({ children }) {
     const { brand, auth } = usePage().props;
     const [open, setOpen] = useState(false);
+    const workspace = WORKSPACE[auth?.user?.role];
 
     return (
         <div className="min-h-screen bg-cream-100">
@@ -51,9 +64,11 @@ export default function SiteLayout({ children }) {
 
                     <div className="hidden items-center gap-2 md:flex">
                         {auth?.user ? (
-                            <ButtonLink href={route('dashboard')} variant="primary">
-                                My Portal
-                            </ButtonLink>
+                            workspace && (
+                                <ButtonLink href={route(workspace.route)} variant="primary">
+                                    {workspace.label}
+                                </ButtonLink>
+                            )
                         ) : (
                             <>
                                 <ButtonLink href={route('login')} variant="ghost">
@@ -91,9 +106,11 @@ export default function SiteLayout({ children }) {
                             ))}
                             <div className="mt-2 grid grid-cols-2 gap-2">
                                 {auth?.user ? (
-                                    <ButtonLink href={route('dashboard')} className="col-span-2">
-                                        My Portal
-                                    </ButtonLink>
+                                    workspace && (
+                                        <ButtonLink href={route(workspace.route)} className="col-span-2">
+                                            {workspace.label}
+                                        </ButtonLink>
+                                    )
                                 ) : (
                                     <>
                                         <ButtonLink href={route('login')} variant="ghost">
