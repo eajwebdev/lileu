@@ -261,14 +261,25 @@ export default function Create({ sellers, products }) {
                             <Field label="Seller" required error={errors.reseller_id}>
                                 <Select value={data.reseller_id} onChange={(e) => setData('reseller_id', e.target.value)}>
                                     <option value="">Choose a seller…</option>
-                                    {sellers.map((seller) => (
-                                        <option key={seller.id} value={seller.id}>
-                                            {seller.label} · {seller.code}
-                                            {seller.engagement === 'reseller' ? ' (reseller)' : ''}
+                                    {sellers.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {/* A business name never hides the person taking the stock. */}
+                                            {[option.label, option.person, option.code].filter(Boolean).join(' · ')}
+                                            {option.engagement === 'reseller' ? ' (reseller)' : ''}
                                         </option>
                                     ))}
                                 </Select>
                             </Field>
+
+                            {seller && (
+                                <p className="-mt-1 text-xs text-chocolate-400">
+                                    Handing to{' '}
+                                    <span className="font-medium text-chocolate-600">
+                                        {seller.person || seller.name}
+                                    </span>
+                                    {seller.phone ? ` · ${seller.phone}` : ''}
+                                </p>
+                            )}
 
                             <div className="grid grid-cols-2 gap-2">
                                 <Field label="Issued on" required error={errors.issued_on}>

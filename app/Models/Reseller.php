@@ -57,6 +57,24 @@ class Reseller extends Model
         return $this->hasMany(Consignment::class);
     }
 
+    /** The name we lead with: a business trades under one, a student does not. */
+    public function displayName(): string
+    {
+        return $this->business_name ?: $this->name;
+    }
+
+    /**
+     * The person behind the trading name, when that is not the same thing.
+     * Shown beside the business name so a seller stays recognisable once
+     * they fill one in.
+     */
+    public function personName(): ?string
+    {
+        return $this->business_name && $this->business_name !== $this->name
+            ? $this->name
+            : null;
+    }
+
     public function takesConsignment(): bool
     {
         return in_array($this->engagement, [self::ENGAGEMENT_CONSIGNMENT, self::ENGAGEMENT_BOTH], true);

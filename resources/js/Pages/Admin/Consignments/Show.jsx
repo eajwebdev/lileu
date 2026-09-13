@@ -585,6 +585,9 @@ export default function Show({ consignment, seller }) {
                         <p className="mt-2 font-medium text-chocolate-700">
                             {seller.business_name || seller.name}
                         </p>
+                        {seller.business_name && seller.business_name !== seller.name && (
+                            <p className="text-sm text-chocolate-400">{seller.name}</p>
+                        )}
                         <p className="font-mono text-xs text-chocolate-300">{seller.code}</p>
                         <p className="mt-2 flex items-center gap-2 text-sm text-chocolate-500">
                             <Phone className="h-4 w-4 text-blush-500" /> {seller.phone}

@@ -366,18 +366,23 @@ class AdminManagementTest extends TestCase
     {
         $seller = $this->approvedSeller();
 
-        // The list carries everything the edit form needs to open filled in.
+        // The list carries everything the edit form needs to open filled in —
+        // the same fields adding one asks for, name and email included.
         $this->actingAs($this->admin)
             ->get(route('admin.resellers.index'))
             ->assertInertia(fn ($page) => $page
                 ->component('Admin/Resellers/Index')
+                ->has('resellers.data.0.name')
+                ->has('resellers.data.0.email')
                 ->has('resellers.data.0.address')
                 ->has('resellers.data.0.downpayment_percent')
                 ->has('resellers.data.0.admin_notes'));
 
         $this->actingAs($this->admin)
             ->put(route('admin.resellers.update', $seller), [
+                'name' => 'Juan Dela Cruz',
                 'business_name' => 'Juan Sweets & Co',
+                'email' => 'juan@example.test',
                 'phone' => '09170000123',
                 'city' => 'Mabinay',
                 'address' => 'Poblacion, Mabinay',
@@ -395,6 +400,48 @@ class AdminManagementTest extends TestCase
         $this->assertSame(12, $seller->discount_percent);
         $this->assertSame(25, $seller->downpayment_percent);
         $this->assertSame('Pays on time.', $seller->admin_notes);
+
+        // A business name is added alongside the person, never over them.
+        $this->assertSame('Juan Dela Cruz', $seller->name);
+        $this->assertSame('Juan Dela Cruz', $seller->personName());
+    }
+
+    public function test_renaming_a_seller_renames_their_portal_login(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.resellers.update', $seller), [
+                'name' => 'Juana Dela Cruz',
+                'email' => 'juana@example.test',
+                'phone' => '09170000123',
+                'engagement' => 'consignment',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $seller->refresh();
+
+        $this->assertSame('Juana Dela Cruz', $seller->name);
+        $this->assertSame('Juana Dela Cruz', $seller->user->name);
+        $this->assertSame('juana@example.test', $seller->user->email);
+
+        // Consignment sellers are never shown the wholesale terms, so an
+        // absent value leaves what they already had alone.
+        $this->assertSame(50, $seller->downpayment_percent);
+    }
+
+    public function test_a_seller_cannot_take_over_another_login_email(): void
+    {
+        $seller = $this->approvedSeller();
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.resellers.update', $seller), [
+                'name' => 'Juan Dela Cruz',
+                'email' => $this->admin->email,
+                'phone' => '09170000123',
+                'engagement' => 'consignment',
+            ])
+            ->assertSessionHasErrors('email');
     }
 
     public function test_editing_a_seller_cannot_set_an_impossible_discount(): void
@@ -403,6 +450,8 @@ class AdminManagementTest extends TestCase
 
         $this->actingAs($this->admin)
             ->put(route('admin.resellers.update', $seller), [
+                'name' => 'Juan Dela Cruz',
+                'email' => 'juan@example.test',
                 'phone' => '09170000123',
                 'engagement' => 'both',
                 'discount_percent' => 80,      // capped at 50
@@ -419,6 +468,8 @@ class AdminManagementTest extends TestCase
 
         $this->actingAs($this->admin)
             ->put(route('admin.resellers.update', $seller), [
+                'name' => 'Juan Dela Cruz',
+                'email' => 'juan@example.test',
                 'phone' => '09170000123',
                 'engagement' => 'both',
                 'discount_percent' => 5,

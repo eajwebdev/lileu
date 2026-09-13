@@ -39,7 +39,8 @@ class ConsignmentController extends Controller
             ->withQueryString()
             ->through(fn (Consignment $c) => [
                 'number' => $c->consignment_number,
-                'seller' => $c->reseller?->business_name ?: $c->reseller?->name,
+                'seller' => $c->reseller?->displayName(),
+                'seller_person' => $c->reseller?->personName(),
                 'seller_code' => $c->reseller?->code,
                 'status' => $c->status,
                 'issued_on' => $c->issued_on->format('M j, Y'),
@@ -78,7 +79,10 @@ class ConsignmentController extends Controller
                 ->get()
                 ->map(fn (Reseller $r) => [
                     'id' => $r->id,
-                    'label' => $r->business_name ?: $r->name,
+                    'label' => $r->displayName(),
+                    // Kept apart from the label so the picker can name the
+                    // person even after a business name is filled in.
+                    'person' => $r->personName(),
                     'name' => $r->name,
                     'code' => $r->code,
                     'phone' => $r->phone,
@@ -221,7 +225,8 @@ class ConsignmentController extends Controller
             'settled_at' => $consignment->settled_at?->format('F j, Y g:i A'),
             'issued_by' => $consignment->issuer?->name,
             'notes' => $consignment->notes,
-            'seller_name' => $consignment->reseller->business_name ?: $consignment->reseller->name,
+            'seller_name' => $consignment->reseller->displayName(),
+            'seller_person' => $consignment->reseller->personName(),
             'seller_code' => $consignment->reseller->code,
             'seller_phone' => $consignment->reseller->phone,
             'totals' => [

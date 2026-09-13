@@ -16,6 +16,7 @@ import {
     Select,
     Textarea,
 } from '@/Components/Lileu/ui';
+import { SellerFields, sellerFormData } from '@/Components/Lileu/seller';
 
 const STATUS_ACTIONS = [
     ['approved', 'Approve', 'success'],
@@ -38,16 +39,7 @@ export default function Show({ reseller, orders, consignments = [], catalog, ass
         ),
     );
 
-    const profileForm = useForm({
-        business_name: reseller.business_name ?? '',
-        engagement: reseller.engagement ?? 'reseller',
-        phone: reseller.phone,
-        city: reseller.city ?? '',
-        address: reseller.address ?? '',
-        discount_percent: reseller.discount_percent,
-        downpayment_percent: reseller.downpayment_percent,
-        admin_notes: reseller.admin_notes ?? '',
-    });
+    const profileForm = useForm(sellerFormData(reseller));
 
     const statusForm = useForm({ status: reseller.status, admin_notes: '', message: '' });
     const catalogForm = useForm({ products: [] });
@@ -157,77 +149,8 @@ export default function Show({ reseller, orders, consignments = [], catalog, ass
                             }}
                             className="mt-5 grid gap-4 border-t border-cream-200 pt-5 sm:grid-cols-2"
                         >
-                            <Field label="Business name" error={profileForm.errors.business_name}>
-                                <Input
-                                    value={profileForm.data.business_name}
-                                    onChange={(e) => profileForm.setData('business_name', e.target.value)}
-                                />
-                            </Field>
-                            <Field label="Phone" error={profileForm.errors.phone}>
-                                <Input
-                                    value={profileForm.data.phone}
-                                    onChange={(e) => profileForm.setData('phone', e.target.value)}
-                                />
-                            </Field>
-                            <Field
-                                label="How they sell"
-                                error={profileForm.errors.engagement}
-                                className="sm:col-span-2"
-                            >
-                                <Select
-                                    value={profileForm.data.engagement}
-                                    onChange={(e) => profileForm.setData('engagement', e.target.value)}
-                                >
-                                    <option value="reseller">Reseller — buys wholesale up front</option>
-                                    <option value="consignment">Consignment — takes stock, settles later</option>
-                                    <option value="both">Both</option>
-                                </Select>
-                            </Field>
-                            <Field label="City" error={profileForm.errors.city}>
-                                <Input
-                                    value={profileForm.data.city}
-                                    onChange={(e) => profileForm.setData('city', e.target.value)}
-                                />
-                            </Field>
-                            <Field label="Address" error={profileForm.errors.address}>
-                                <Input
-                                    value={profileForm.data.address}
-                                    onChange={(e) => profileForm.setData('address', e.target.value)}
-                                />
-                            </Field>
-                            <Field
-                                label="Extra discount %"
-                                hint="Applied on top of wholesale pricing."
-                                error={profileForm.errors.discount_percent}
-                            >
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="50"
-                                    value={profileForm.data.discount_percent}
-                                    onChange={(e) => profileForm.setData('discount_percent', e.target.value)}
-                                />
-                            </Field>
-                            <Field
-                                label="Downpayment %"
-                                hint="Required before an order is confirmed."
-                                error={profileForm.errors.downpayment_percent}
-                            >
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={profileForm.data.downpayment_percent}
-                                    onChange={(e) => profileForm.setData('downpayment_percent', e.target.value)}
-                                />
-                            </Field>
-                            <Field label="Internal notes" className="sm:col-span-2" error={profileForm.errors.admin_notes}>
-                                <Textarea
-                                    rows={2}
-                                    value={profileForm.data.admin_notes}
-                                    onChange={(e) => profileForm.setData('admin_notes', e.target.value)}
-                                />
-                            </Field>
+                            <SellerFields form={profileForm} loginRequired={Boolean(reseller.email)} />
+
                             <div className="sm:col-span-2">
                                 <Button type="submit" disabled={profileForm.processing}>
                                     Save profile

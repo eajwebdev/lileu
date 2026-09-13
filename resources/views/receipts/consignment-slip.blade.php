@@ -119,7 +119,8 @@
                 </td>
                 <td>
                     <div class="info-label">Seller</div>
-                    <div class="info-value">{{ $data['seller_name'] }}</div>
+                    {{-- The trading name signs, but the person is who we handed it to. --}}
+                    <div class="info-value">{{ $data['seller_name'] }}@if (! empty($data['seller_person'])) ({{ $data['seller_person'] }})@endif</div>
                 </td>
                 <td>
                     <div class="info-label">Contact</div>

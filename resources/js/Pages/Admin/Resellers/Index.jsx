@@ -14,10 +14,9 @@ import {
     Money,
     Pagination,
     ResellerStatusBadge,
-    Select,
-    Textarea,
     Toggle,
 } from '@/Components/Lileu/ui';
+import { BLANK_SELLER, SellerFields, sellerFormData } from '@/Components/Lileu/seller';
 
 /** How a seller works with us — shown next to their approval status. */
 const ENGAGEMENT = {
@@ -124,6 +123,10 @@ export default function Index({ resellers, filters, counts }) {
                                             >
                                                 {reseller.business_name || reseller.name}
                                             </Link>
+                                            {reseller.business_name &&
+                                                reseller.business_name !== reseller.name && (
+                                                    <p className="text-xs text-chocolate-400">{reseller.name}</p>
+                                                )}
                                             <p className="font-mono text-[11px] text-chocolate-300">
                                                 {reseller.code}
                                                 {reseller.discount_percent > 0 && (
@@ -195,16 +198,7 @@ export default function Index({ resellers, filters, counts }) {
  */
 function AddSellerModal({ open, onClose }) {
     const form = useForm({
-        name: '',
-        business_name: '',
-        email: '',
-        phone: '',
-        city: '',
-        address: '',
-        engagement: 'consignment',
-        discount_percent: 0,
-        downpayment_percent: 50,
-        admin_notes: '',
+        ...BLANK_SELLER,
         create_login: false,
         password: '',
         password_confirmation: '',
@@ -212,7 +206,13 @@ function AddSellerModal({ open, onClose }) {
 
     const submit = (e) => {
         e.preventDefault();
-        form.post(route('admin.resellers.store'), { onSuccess: () => { form.reset(); onClose(); } });
+
+        form.post(route('admin.resellers.store'), {
+            onSuccess: () => {
+                form.reset();
+                onClose();
+            },
+        });
     };
 
     return (
@@ -223,91 +223,17 @@ function AddSellerModal({ open, onClose }) {
             description="They are approved straight away — no application to review."
             footer={
                 <>
-                    <Button variant="ghost" onClick={onClose}>
+                    <Button type="button" variant="secondary" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button onClick={submit} disabled={form.processing}>
+                    <Button type="submit" form="add-seller-form" disabled={form.processing}>
                         Add seller
                     </Button>
                 </>
             }
         >
-            <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-                <Field label="Full name" required error={form.errors.name} className="sm:col-span-2">
-                    <Input value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} />
-                </Field>
-
-                <Field label="Business / school" error={form.errors.business_name}>
-                    <Input
-                        value={form.data.business_name}
-                        onChange={(e) => form.setData('business_name', e.target.value)}
-                        placeholder="Mabinay National High School"
-                    />
-                </Field>
-
-                <Field label="Mobile number" required error={form.errors.phone}>
-                    <Input value={form.data.phone} onChange={(e) => form.setData('phone', e.target.value)} />
-                </Field>
-
-                <Field label="City / municipality" error={form.errors.city}>
-                    <Input
-                        value={form.data.city}
-                        onChange={(e) => form.setData('city', e.target.value)}
-                        placeholder="Mabinay"
-                    />
-                </Field>
-
-                <Field label="Address" error={form.errors.address}>
-                    <Input value={form.data.address} onChange={(e) => form.setData('address', e.target.value)} />
-                </Field>
-
-                <Field
-                    label="How they sell"
-                    required
-                    hint="Consignment sellers take stock now and pay after selling."
-                    error={form.errors.engagement}
-                    className="sm:col-span-2"
-                >
-                    <Select
-                        value={form.data.engagement}
-                        onChange={(e) => form.setData('engagement', e.target.value)}
-                    >
-                        <option value="consignment">Consignment — takes stock, settles later</option>
-                        <option value="reseller">Reseller — buys wholesale up front</option>
-                        <option value="both">Both</option>
-                    </Select>
-                </Field>
-
-                {form.data.engagement !== 'consignment' && (
-                    <>
-                        <Field label="Extra discount %" error={form.errors.discount_percent}>
-                            <Input
-                                type="number"
-                                min="0"
-                                max="50"
-                                value={form.data.discount_percent}
-                                onChange={(e) => form.setData('discount_percent', e.target.value)}
-                            />
-                        </Field>
-                        <Field label="Downpayment %" error={form.errors.downpayment_percent}>
-                            <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={form.data.downpayment_percent}
-                                onChange={(e) => form.setData('downpayment_percent', e.target.value)}
-                            />
-                        </Field>
-                    </>
-                )}
-
-                <Field label="Internal notes" error={form.errors.admin_notes} className="sm:col-span-2">
-                    <Textarea
-                        rows={2}
-                        value={form.data.admin_notes}
-                        onChange={(e) => form.setData('admin_notes', e.target.value)}
-                    />
-                </Field>
+            <form id="add-seller-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+                <SellerFields form={form} loginRequired={form.data.create_login} />
 
                 <div className="sm:col-span-2">
                     <Toggle
@@ -320,13 +246,6 @@ function AddSellerModal({ open, onClose }) {
 
                 {form.data.create_login && (
                     <>
-                        <Field label="Email" required error={form.errors.email} className="sm:col-span-2">
-                            <Input
-                                type="email"
-                                value={form.data.email}
-                                onChange={(e) => form.setData('email', e.target.value)}
-                            />
-                        </Field>
                         <Field label="Password" required error={form.errors.password}>
                             <Input
                                 type="password"
@@ -349,38 +268,17 @@ function AddSellerModal({ open, onClose }) {
 }
 
 /**
- * Edit a seller in place.
- *
- * Name and email are deliberately absent: they belong to the person's own
- * account, and the status switch lives on their detail page beside the
- * message that explains the change.
+ * Edit a seller in place. Status is the one thing left out: it lives on their
+ * detail page beside the message that explains the change.
  */
 function EditSellerModal({ open, reseller, onClose }) {
-    const form = useForm({
-        business_name: '',
-        phone: '',
-        city: '',
-        address: '',
-        engagement: 'reseller',
-        discount_percent: 0,
-        downpayment_percent: 50,
-        admin_notes: '',
-    });
+    const form = useForm({ ...BLANK_SELLER });
 
     useEffect(() => {
         if (!open || !reseller) return;
 
         form.clearErrors();
-        form.setData({
-            business_name: reseller.business_name ?? '',
-            phone: reseller.phone ?? '',
-            city: reseller.city ?? '',
-            address: reseller.address ?? '',
-            engagement: reseller.engagement ?? 'reseller',
-            discount_percent: reseller.discount_percent ?? 0,
-            downpayment_percent: reseller.downpayment_percent ?? 50,
-            admin_notes: reseller.admin_notes ?? '',
-        });
+        form.setData(sellerFormData(reseller));
     }, [open, reseller?.id]);
 
     if (!reseller) return null;
@@ -411,73 +309,8 @@ function EditSellerModal({ open, reseller, onClose }) {
                 </>
             }
         >
-            <form id="edit-seller-form" onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-                <Field label="Business name" error={form.errors.business_name} className="sm:col-span-2">
-                    <Input
-                        value={form.data.business_name}
-                        onChange={(e) => form.setData('business_name', e.target.value)}
-                        placeholder={reseller.name}
-                    />
-                </Field>
-                <Field label="Phone" error={form.errors.phone} required>
-                    <Input value={form.data.phone} onChange={(e) => form.setData('phone', e.target.value)} />
-                </Field>
-                <Field label="City" error={form.errors.city}>
-                    <Input value={form.data.city} onChange={(e) => form.setData('city', e.target.value)} />
-                </Field>
-                <Field label="Address" error={form.errors.address} className="sm:col-span-2">
-                    <Textarea
-                        rows={2}
-                        value={form.data.address}
-                        onChange={(e) => form.setData('address', e.target.value)}
-                    />
-                </Field>
-                <Field label="Engagement" error={form.errors.engagement} required className="sm:col-span-2">
-                    <Select
-                        value={form.data.engagement}
-                        onChange={(e) => form.setData('engagement', e.target.value)}
-                    >
-                        <option value="reseller">Buys wholesale</option>
-                        <option value="consignment">Consignment</option>
-                        <option value="both">Wholesale + consignment</option>
-                    </Select>
-                </Field>
-                <Field
-                    label="Discount %"
-                    error={form.errors.discount_percent}
-                    hint="Taken off their order subtotal"
-                    required
-                >
-                    <Input
-                        type="number"
-                        min="0"
-                        max="50"
-                        value={form.data.discount_percent}
-                        onChange={(e) => form.setData('discount_percent', e.target.value)}
-                    />
-                </Field>
-                <Field
-                    label="Downpayment %"
-                    error={form.errors.downpayment_percent}
-                    hint="Required before an order is confirmed"
-                    required
-                >
-                    <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={form.data.downpayment_percent}
-                        onChange={(e) => form.setData('downpayment_percent', e.target.value)}
-                    />
-                </Field>
-                <Field label="Internal notes" error={form.errors.admin_notes} className="sm:col-span-2">
-                    <Textarea
-                        rows={3}
-                        value={form.data.admin_notes}
-                        onChange={(e) => form.setData('admin_notes', e.target.value)}
-                        placeholder="Only staff see this."
-                    />
-                </Field>
+            <form id="edit-seller-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+                <SellerFields form={form} loginRequired={Boolean(reseller.email)} />
             </form>
         </Modal>
     );

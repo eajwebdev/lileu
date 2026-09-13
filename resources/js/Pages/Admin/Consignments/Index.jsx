@@ -136,6 +136,11 @@ export default function Index({ consignments, filters, summary }) {
                                                 <p className="max-w-40 truncate font-medium text-chocolate-700">
                                                     {row.seller}
                                                 </p>
+                                                {row.seller_person && (
+                                                    <p className="max-w-40 truncate text-[11px] text-chocolate-400">
+                                                        {row.seller_person}
+                                                    </p>
+                                                )}
                                                 <p className="font-mono text-[11px] text-chocolate-300">
                                                     {row.seller_code}
                                                 </p>

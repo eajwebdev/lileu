@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -72,7 +73,7 @@ class ResellerController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'business_name' => ['nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['nullable', 'required_if:create_login,true', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:40'],
             'city' => ['nullable', 'string', 'max:120'],
             'address' => ['nullable', 'string', 'max:500'],
@@ -190,22 +191,53 @@ class ResellerController extends Controller
         ]);
     }
 
+    /**
+     * Edits a seller in the same terms they were added in, so the two forms
+     * ask for one set of facts. Status stays out of it: that goes through the
+     * approval flow, where the seller is told about the change.
+     */
     public function update(Request $request, Reseller $reseller): RedirectResponse
     {
         $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
             'business_name' => ['nullable', 'string', 'max:255'],
+            // A seller with a portal login signs in with their email, so it
+            // cannot be taken away or handed to somebody else.
+            'email' => [
+                $reseller->user_id ? 'required' : 'nullable',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($reseller->user_id),
+            ],
             'phone' => ['required', 'string', 'max:40'],
             'city' => ['nullable', 'string', 'max:120'],
             'address' => ['nullable', 'string', 'max:500'],
             'engagement' => ['required', 'in:reseller,consignment,both'],
-            'discount_percent' => ['required', 'integer', 'min:0', 'max:50'],
-            'downpayment_percent' => ['required', 'integer', 'min:0', 'max:100'],
+            // Consignment sellers are never shown these two, so an absent
+            // value keeps whatever the seller already has.
+            'discount_percent' => ['nullable', 'integer', 'min:0', 'max:50'],
+            'downpayment_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'admin_notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $reseller->update($data);
+        DB::transaction(function () use ($data, $reseller) {
+            foreach (['discount_percent', 'downpayment_percent'] as $percent) {
+                if (($data[$percent] ?? null) === null) {
+                    unset($data[$percent]);
+                }
+            }
 
-        return back()->with('success', 'Reseller updated.');
+            $reseller->update($data);
+
+            // The portal account is the same person, so it follows the profile.
+            $reseller->user?->update(array_filter([
+                'name' => $data['name'],
+                'email' => $data['email'] ?? null,
+                'phone' => $data['phone'],
+            ]));
+        });
+
+        return back()->with('success', 'Seller updated.');
     }
 
     public function updateStatus(Request $request, Reseller $reseller): RedirectResponse
